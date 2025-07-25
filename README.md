@@ -2,7 +2,7 @@
 Mapúa University - School of Health Sciences 
 Course Code: BI120L  
 Section: CON29  
-Authors: Dwayne Timothy Baniqued, Audrey Faith R. Loyola  
+Authors: Morales Enrico James-E., Pinzon Jazreel S. 
 
 ---
 
