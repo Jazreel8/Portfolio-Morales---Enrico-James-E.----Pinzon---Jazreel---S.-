@@ -1,133 +1,991 @@
-# ----------------
-# Load Libraries
-# ----------------
-
-install.packages("tidyverse")
-install.packages("psych")
-install.packages("GGally")
-install.packages("corrplot")
-
-library(tidyverse)
-library(psych)
-library(GGally)
-library(corrplot)
-
-# -------------------
-# Load the data set
-# -------------------
-
-df <- read.csv("C:/Users/nicho/Downloads/1_Vital_signs_diagnosis_data_Group_007.csv", stringsAsFactors = FALSE)
-
-# ----------------------
-# Clean and Preprocess
-# ----------------------
-
-# Convert to numeric
-df$Systolic_BP <- as.numeric(gsub("[^0-9.]", "", df$Systolic_BP))
-df$Diastolic_BP <- as.numeric(gsub("[^0-9.]", "", df$Diastolic_BP))
-df$Hypertension <- as.numeric(gsub("[^0-9.]", "", df$Hypertension))
-
-# Factor conversion for categorical variables
-df$Sex <- factor(df$Sex, levels = c(0, 1), labels = c("Female", "Male"))
-df$Smoking_Status <- factor(df$Smoking_Status,
-                            levels = c(0, 1, 2),
-                            labels = c("Non-Smoker", "Occasional", "Chainsmoker"))
-
-# Drop legend columns
-df <- df %>% select(-contains("Legend"))
-
-# Remove implausible BMI (zero or below)
-df <- df %>% filter(BMI > 10)
-
-# --------------------------
-# Outlier Removal Function
-# --------------------------
-remove_outliers <- function(df, col) {
-  Q1 <- quantile(df[[col]], 0.25, na.rm = TRUE)
-  Q3 <- quantile(df[[col]], 0.75, na.rm = TRUE)
-  IQR <- Q3 - Q1
-  df %>% filter(df[[col]] >= (Q1 - 1.5 * IQR) & df[[col]] <= (Q3 + 1.5 * IQR))
-}
-
-# Apply outlier removal to selected columns
-df_clean <- df %>%
-  remove_outliers("Glucose_mg.dL") %>%
-  remove_outliers("Cholesterol_mg.dL") %>%
-  remove_outliers("BMI")
-
-# -----------------------
-# Descriptive Statistics
-# -----------------------
-summary(df_clean)
-describe(df_clean %>% select(where(is.numeric)))
-
-# ---------------
-# Visualization 
-# ---------------
-
-# Histograms by Sex
-histogram_vars <- c("BMI", "Glucose_mg.dL", "Cholesterol_mg.dL")
-for (col in histogram_vars) {
-  print(
-    ggplot(df_clean %>% filter(!is.na(.data[[col]])), aes_string(x = col, fill = "Sex")) +
-      geom_histogram(color = "black", bins = 30, position = "identity", alpha = 0.6) +
-      facet_wrap(~ Sex) +
-      labs(title = paste("Distribution of", col, "by Sex"),
-           x = col, fill = "Sex") +
-      theme_minimal()
-  )
-}
-
-# Bar plot for Smoking_Status
-ggplot(df_clean %>% filter(!is.na(Smoking_Status)), aes(x = Smoking_Status)) +
-  geom_bar(fill = "mediumpurple", color = "black") +
-  labs(title = "Smoking Status Frequency",
-       x = "Smoking Status", y = "Count") +
-  theme_minimal()
-
-# Box Plots by Sex
-boxplot_vars <- c("BMI", "Glucose_mg.dL", "Cholesterol_mg.dL")
-for (col in boxplot_vars) {
-  print(
-    ggplot(df_clean %>% filter(!is.na(.data[[col]])), aes_string(x = "Sex", y = col, fill = "Sex")) +
-      geom_boxplot(alpha = 0.7) +
-      labs(title = paste("Boxplot of", col, "by Sex"),
-           x = "Sex", y = col, fill = "Sex") +
-      theme_minimal()
-  )
-}
-
-# Scatter Plots: BMI vs other continuous variables
-scatter_vars <- c("Systolic_BP", "Diastolic_BP", "Glucose_mg.dL", "Cholesterol_mg.dL")
-for (col in scatter_vars) {
-  print(
-    ggplot(df_clean %>% filter(!is.na(BMI), !is.na(.data[[col]])), aes_string(x = "BMI", y = col, color = "Sex")) +
-      geom_point(alpha = 0.6) +
-      geom_smooth(method = "lm", se = FALSE, linetype = "dashed", color = "black") +
-      labs(title = paste("Scatterplot of BMI vs", col),
-           x = "BMI", y = col, color = "Sex") +
-      theme_minimal()
-  )
-}
-
-# --------------------
-# Statistical Tests 
-# --------------------
-
-# t-test: Glucose by Sex
-t_test_result <- t.test(Glucose_mg.dL ~ Sex, data = df_clean)
-print(t_test_result)
-
-# Correlation matrix (rounded for clarity)
-cor_matrix <- cor(df_clean %>% select(where(is.numeric)), use = "complete.obs")
-print(round(cor_matrix, 2))
-
-# Visual correlation matrix
-corrplot(cor_matrix, method = "color", tl.cex = 0.7)
-
-# --------------------
-# Save cleaned data 
-# --------------------
-
-#save
-write.csv(df_clean, "cleaned_Vital_signs_diagnosis_data.csv", row.names = FALSE)
+"Patient.ID","Age","Sex","Weight_kg","Height_cm","BMI","Systolic_BP","Diastolic_BP","Hypertension","Heart_rate","Smoking_Status","Physical_Activity_Hours_Week","Stress_Level","Daily_Sleeping_hours","Glucose_mg.dL","Cholesterol_mg.dL","Elevated.Risk","Medication"
+1,42,"Male",57,150,25.33333333,139,88,3,83,"Occasional",16,5,7,125,172,"Normal/No Major Risk",NA
+2,84,"Male",78,173,26.06167931,132,76,3,98,"Non-Smoker",13,3,4,118,194,"Pre-Diabetes",NA
+3,24,"Male",67,171,22.91303307,124,75,2,88,"Occasional",10,6,7,118,148,"Pre-Diabetes",NA
+4,65,"Female",62,135,34.01920439,150,90,4,115,"Occasional",4,6,4,156,233,"Normal/No Major Risk",NA
+5,31,"Female",65,138,34.13148498,125,82,3,78,"Occasional",13,2,6,153,187,"Normal/No Major Risk",NA
+7,90,"Female",66,139,34.15972258,147,89,4,108,"Non-Smoker",0,7,6,163,234,"Normal/No Major Risk",NA
+8,47,"Female",60,148,27.39225712,141,91,4,141,"Chainsmoker",0,10,4,138,213,"Depression",NA
+9,41,"Female",53,154,22.34778209,126,78,2,116,"Occasional",2,10,7,123,172,"Pre-Diabetes",NA
+10,57,"Female",64,134,35.64268211,147,91,4,133,"Occasional",1,10,6,175,238,"Pheochromocytoma",NA
+11,86,"Female",74,143,36.18758864,157,92,4,123,"Chainsmoker",8,7,4,167,273,"Cardiovascular Disease",NA
+12,83,"Male",54,162,20.57613169,136,86,3,136,"Occasional",3,10,6,114,210,"Pre-Diabetes",NA
+13,35,"Female",51,170,17.64705882,118,64,1,79,"Occasional",12,2,6,87,137,"Normal/No Major Risk",NA
+14,72,"Female",79,154,33.310845,137,NA,3,93,"Non-Smoker",1,4,6,153,208,"Normal/No Major Risk",NA
+15,86,"Female",77,166,27.94309769,147,87,4,99,"Occasional",9,3,4,126,224,"Normal/No Major Risk",NA
+16,19,"Female",46,145,21.87871581,125,82,3,71,"Chainsmoker",16,4,7,110,140,"Pre-Diabetes",NA
+NA,23,"Female",51,141,25.65263317,119,76,1,66,"Occasional",15,2,8,123,147,"Pre-Diabetes",NA
+19,70,"Male",49,172,16.56300703,126,75,2,68,"Occasional",16,2,6,82,157,"Normal/No Major Risk",NA
+20,80,"Male",81,162,30.86419753,149,91,4,116,"Occasional",2,8,6,151,237,"Normal/No Major Risk",NA
+21,43,"Female",61,170,21.10726644,125,75,2,140,NA,3,10,4,112,158,"Pre-Diabetes",NA
+22,86,"Male",77,152,33.32756233,155,88,4,107,"Occasional",8,6,5,155,247,"Normal/No Major Risk",NA
+23,60,"Male",70,143,34.23150276,134,91,4,85,"Occasional",7,3,6,155,217,"Normal/No Major Risk",NA
+24,88,"Female",65,140,33.16326531,147,86,4,83,"Non-Smoker",15,3,6,151,216,"Normal/No Major Risk",NA
+25,45,"Female",73,141,36.71847493,141,93,4,121,"Chainsmoker",5,8,5,173,239,"Cardiovascular Disease",NA
+26,37,"Female",62,134,34.5288483,136,88,3,95,"Chainsmoker",3,5,5,158,210,"Normal/No Major Risk",NA
+27,51,"Female",55,152,23.80540166,125,74,2,111,"Occasional",1,7,5,119,183,"Pre-Diabetes",NA
+28,74,"Female",69,162,26.29172382,142,96,4,118,"Chainsmoker",2,9,5,133,226,"Insulin Resistance",NA
+29,46,"Male",76,169,26.60971255,123,77,2,95,"Non-Smoker",0,6,7,132,165,"Normal/No Major Risk",NA
+30,74,"Male",77,166,27.94309769,143,91,4,107,"Occasional",1,6,6,136,219,"Normal/No Major Risk",NA
+31,25,"Female",64,136,34.60207612,127,90,4,80,"Chainsmoker",6,5,8,164,197,"Normal/No Major Risk",NA
+32,39,"Female",56,161,21.60410478,116,70,1,98,"Occasional",7,5,6,108,159,"Pre-Diabetes",NA
+33,86,"Female",56,169,19.60715661,141,81,4,109,"Occasional",7,4,4,94,202,"Normal/No Major Risk",NA
+34,42,"Female",73,146,34.24657534,133,83,3,97,"Non-Smoker",3,5,6,159,187,"Normal/No Major Risk",NA
+35,82,"Female",50,134,27.8458454,147,90,4,97,"Occasional",5,4,6,131,218,"Normal/No Major Risk",NA
+36,67,"Female",59,168,20.90419501,135,79,3,103,"Non-Smoker",5,7,5,108,167,"Pre-Diabetes",NA
+37,27,"Female",56,131,32.63213099,140,85,4,125,"Chainsmoker",15,7,4,153,210,"Cardiovascular Disease",NA
+38,22,"Female",63,134,35.0857652,129,90,4,62,"Chainsmoker",10,3,7,160,189,"Obesity",NA
+39,21,"Male",56,153,23.922423,129,72,2,114,"Occasional",1,4,4,112,159,"Pre-Diabetes",NA
+40,85,"Female",50,142,24.79666733,143,87,4,118,"Chainsmoker",7,8,5,125,231,"Insulin Resistance",NA
+41,49,"Female",62,151,27.19178983,144,80,4,68,"Occasional",16,1,5,121,178,"Pre-Diabetes",NA
+42,51,"Female",63,138,33.08128544,144,90,4,127,"Occasional",4,10,6,164,222,"Normal/No Major Risk",NA
+43,41,"Female",72,149,32.43097158,134,88,3,107,"Occasional",8,4,4,146,201,"Normal/No Major Risk",NA
+44,53,"Female",63,165,23.14049587,130,82,3,104,"Occasional",8,5,5,113,181,"Pre-Diabetes",NA
+45,37,"Female",64,130,37.86982249,127,84,3,92,"Chainsmoker",13,6,6,175,224,"Obesity",NA
+46,90,"Male",67,144,32.31095679,140,90,4,60,"Occasional",14,1,5,141,227,"Normal/No Major Risk",NA
+47,86,"Male",60,159,23.7332384,131,78,3,108,"Non-Smoker",1,5,5,115,192,"Pre-Diabetes",NA
+48,59,"Female",54,160,21.09375,127,79,2,91,"Chainsmoker",12,4,6,104,181,"Pre-Diabetes",NA
+49,56,"Female",49,141,24.64664755,135,87,3,108,"Chainsmoker",15,7,5,123,202,"Pre-Diabetes",NA
+50,NA,"Male",74,174,24.44180209,NA,NA,NA,104,"Chainsmoker",1,7,7,126,147,"#VALUE!",NA
+51,50,"Female",75,142,37.19500099,142,83,4,95,"Occasional",1,5,6,171,225,"Obesity",NA
+52,68,"Male",58,169,20.30741221,126,NA,2,112,"Non-Smoker",15,5,4,99,168,"Normal/No Major Risk",NA
+53,48,"Female",58,155,24.14151925,131,73,3,111,"Occasional",2,4,4,113,181,"Pre-Diabetes",NA
+54,85,"Male",78,144,37.61574074,160,95,4,100,"Chainsmoker",6,5,5,170,269,"Obesity",NA
+56,52,"Female",78,155,32.46618106,138,82,3,134,"Non-Smoker",1,8,4,154,202,"Type 2 Diabetes",NA
+57,84,"Male",73,160,28.515625,135,84,3,110,"Non-Smoker",8,6,5,136,210,"Normal/No Major Risk",NA
+58,27,"Male",63,161,24.30461788,111,65,1,64,"Non-Smoker",11,2,9,119,127,"Pre-Diabetes",NA
+59,19,"Female",66,130,39.05325444,132,91,4,85,"Chainsmoker",NA,5,7,180,207,"Obesity",NA
+60,55,"Female",66,163,24.84098009,136,83,3,88,"Chainsmoker",13,5,6,121,192,"Pre-Diabetes",NA
+62,NA,"Female",65,134,36.19959902,NA,NA,NA,90,"Chainsmoker",10,2,4,157,182,"#VALUE!",NA
+63,89,"Male",64,171,21.88707637,123,74,2,103,"Non-Smoker",13,7,5,112,188,"Pre-Diabetes",NA
+64,49,"Male",67,151,29.38467611,137,83,3,79,"Occasional",11,2,5,132,191,"Normal/No Major Risk",NA
+65,37,"Female",57,137,30.36922585,127,91,4,76,"Chainsmoker",12,3,6,139,188,"Normal/No Major Risk",NA
+66,53,"Male",65,153,27.76709812,129,85,3,80,"Occasional",8,3,6,129,187,"Normal/No Major Risk",NA
+67,64,"Male",72,140,36.73469388,141,89,4,78,"Occasional",10,2,6,163,226,"Obesity",NA
+68,NA,"Female",55,149,24.77365884,NA,NA,NA,58,"Non-Smoker",10,2,9,121,99,"#VALUE!",NA
+69,29,"Male",58,163,21.8299522,128,73,2,90,"Chainsmoker",15,1,4,97,159,"Normal/No Major Risk",NA
+70,26,"Male",52,156,21.36752137,121,68,2,71,"Non-Smoker",9,3,8,107,115,"Pre-Diabetes",NA
+71,26,"Female",58,160,22.65625,117,69,1,76,"Non-Smoker",11,4,9,117,123,"Pre-Diabetes",NA
+72,75,"Male",87,169,30.46111831,147,85,4,107,"Non-Smoker",0,5,5,142,206,"Normal/No Major Risk",NA
+73,69,"Male",57,168,20.19557823,132,73,3,78,"Non-Smoker",14,2,6,97,155,"Normal/No Major Risk",NA
+74,67,"Male",68,174,22.46003435,132,88,3,125,"Chainsmoker",0,10,5,120,208,"Pre-Diabetes",NA
+75,56,"Female",47,152,20.34279778,140,86,4,80,"Chainsmoker",15,2,5,95,176,"Normal/No Major Risk",NA
+76,62,"Male",63,161,24.30461788,137,82,3,107,"Occasional",3,6,6,121,193,"Pre-Diabetes",NA
+77,81,"Male",54,164,20.07733492,143,78,4,91,"Occasional",16,2,4,92,189,"Normal/No Major Risk",NA
+78,37,"Male",52,164,19.33372992,117,72,1,102,"Chainsmoker",16,7,6,103,161,"Pre-Diabetes",NA
+79,46,"Male",77,164,28.62879239,135,82,3,124,"Occasional",2,9,6,145,199,"Normal/No Major Risk",NA
+80,22,"Female",54,130,31.95266272,134,78,3,109,"Occasional",1,8,8,160,186,"Normal/No Major Risk",NA
+81,85,"Male",58,144,27.97067901,135,84,3,122,"Occasional",9,6,4,132,235,"Normal/No Major Risk",NA
+82,53,"Male",56,155,23.30905307,132,76,3,110,"Occasional",5,4,4,109,185,"Pre-Diabetes",NA
+83,82,"Male",74,166,26.85440557,138,82,3,79,"Non-Smoker",14,4,5,125,189,"Normal/No Major Risk",NA
+84,34,"Female",63,134,35.0857652,128,78,2,124,"Non-Smoker",2,9,5,168,192,"Obesity",NA
+85,50,"Male",51,153,21.78649237,136,82,3,51,"Chainsmoker",14,1,7,103,164,"Pre-Diabetes",NA
+86,80,"Female",52,137,27.70525867,145,93,4,96,"Occasional",6,5,6,133,217,"Normal/No Major Risk",NA
+87,18,"Female",69,169,24.15881797,124,77,2,101,"Occasional",6,8,7,127,151,"Normal/No Major Risk",NA
+88,68,"Female",50,152,21.64127424,128,75,2,66,"Non-Smoker",11,2,6,103,154,"Pre-Diabetes",NA
+89,74,"Female",66,135,36.21399177,142,96,4,98,"Occasional",5,5,6,167,244,"Obesity",NA
+90,40,"Female",49,146,22.98742728,130,79,3,68,"Occasional",11,3,7,112,156,"Pre-Diabetes",NA
+91,67,"Female",62,167,22.23098713,134,79,3,121,"Occasional",6,7,4,111,197,"Pre-Diabetes",NA
+92,83,"Male",73,155,30.38501561,159,96,4,78,"Occasional",14,2,6,138,221,"Normal/No Major Risk",NA
+93,32,"Female",72,131,41.95559699,120,80,3,82,"Non-Smoker",3,4,7,190,198,"Obesity",NA
+94,79,"Male",67,157,27.18163009,131,83,3,69,"Non-Smoker",16,1,5,121,185,"Pre-Diabetes",NA
+95,54,"Male",75,160,29.296875,131,81,3,100,"Non-Smoker",2,5,5,137,181,"Normal/No Major Risk",NA
+96,71,"Male",81,158,32.44672328,146,91,4,109,"Non-Smoker",4,4,4,146,211,"Normal/No Major Risk",NA
+97,84,"Female",65,156,26.70940171,136,91,4,123,"Occasional",15,7,4,129,229,"Insulin Resistance",NA
+98,63,"Female",70,169,24.50894577,127,73,2,115,"Non-Smoker",0,8,5,124,177,"Pre-Diabetes",NA
+99,27,"Female",58,165,21.30394858,112,61,1,105,"Non-Smoker",12,7,6,111,130,"Pre-Diabetes",NA
+100,82,"Male",58,159,22.94213045,143,80,4,98,"Occasional",6,4,4,108,205,"Pre-Diabetes",NA
+101,57,"Female",54,154,22.76943835,131,76,3,69,"Non-Smoker",12,1,5,103,147,"Pre-Diabetes",NA
+102,85,"Female",61,158,24.43518667,146,92,4,90,"Chainsmoker",8,4,5,116,219,"Pre-Diabetes",NA
+103,35,"Female",52,163,19.57168128,109,63,1,98,"Non-Smoker",7,5,6,100,128,"Pre-Diabetes",NA
+104,40,"Female",72,145,34.24494649,139,80,3,116,"Non-Smoker",6,7,6,163,194,"Normal/No Major Risk",NA
+105,23,"Female",52,167,18.64534404,127,72,2,96,"Chainsmoker",10,6,5,97,145,"Normal/No Major Risk",NA
+106,48,"Male",48,153,20.504934,130,75,3,122,"Occasional",11,7,4,104,174,"Pre-Diabetes",NA
+107,18,"Female",55,164,20.44913742,125,74,2,104,"Occasional",8,8,7,112,140,"Pre-Diabetes",NA
+108,80,"Male",60,141,30.17956843,156,97,4,69,"Chainsmoker",15,2,6,137,227,"Normal/No Major Risk",NA
+109,33,"Female",67,137,35.69716021,136,88,3,118,"Chainsmoker",7,6,4,163,220,"Obesity",NA
+110,26,"Male",52,166,18.87066338,121,70,2,60,"Occasional",14,2,7,93,121,"Normal/No Major Risk",NA
+111,27,"Male",59,158,23.63403301,117,73,1,70,"Occasional",16,2,5,109,144,"Pre-Diabetes",NA
+112,62,"Female",72,149,32.43097158,159,102,4,108,"Chainsmoker",14,7,5,154,231,"Cardiovascular Disease",NA
+113,66,"Female",67,137,35.69716021,148,83,4,131,"Non-Smoker",2,8,4,167,226,"Type 2 Diabetes",NA
+114,33,"Male",63,151,27.63036709,133,79,3,122,"Occasional",1,8,6,139,185,"Normal/No Major Risk",NA
+115,22,"Male",61,159,24.12879237,121,67,2,105,"Non-Smoker",7,5,4,115,136,"Pre-Diabetes",NA
+116,73,"Female",58,169,20.30741221,135,81,3,128,"Non-Smoker",0,6,4,101,176,"Pre-Diabetes",NA
+117,80,"Male",68,175,22.20408163,124,72,2,129,"Non-Smoker",7,7,4,111,191,"Pre-Diabetes",NA
+118,84,"Male",49,168,17.36111111,120,79,2,82,"Occasional",15,3,5,85,178,"Normal/No Major Risk",NA
+119,88,"Female",62,141,31.18555405,150,82,4,141,"Non-Smoker",1,10,4,153,236,"Type 2 Diabetes",NA
+121,23,"Male",51,149,22.9719382,119,62,1,91,"Non-Smoker",14,7,7,120,127,"Pre-Diabetes",NA
+122,44,"Female",53,157,21.50188649,132,83,3,75,"Chainsmoker",16,3,5,102,166,"Pre-Diabetes",NA
+123,69,"Male",48,154,20.23950076,146,86,4,65,"Chainsmoker",15,1,6,95,180,"Normal/No Major Risk",NA
+124,64,"Female",70,167,25.0995016,138,90,4,89,"Occasional",7,4,5,118,189,"Pre-Diabetes",NA
+125,38,"Male",72,166,26.12861083,123,87,3,97,"Chainsmoker",12,7,6,131,182,"Normal/No Major Risk",NA
+126,48,"Male",60,160,23.4375,130,77,3,79,"Occasional",9,3,6,112,167,"Pre-Diabetes",NA
+127,39,"Male",69,175,22.53061224,124,78,2,126,"Chainsmoker",12,7,4,112,185,"Pre-Diabetes",NA
+128,63,"Male",75,172,25.35154137,140,76,4,133,"Non-Smoker",8,8,4,125,189,"Insulin Resistance",NA
+129,57,"Female",54,166,19.59645812,121,67,2,83,"Non-Smoker",6,3,6,96,142,"Normal/No Major Risk",NA
+130,36,"Female",69,131,40.20744712,132,79,3,103,"Occasional",10,6,6,185,225,"Obesity",NA
+131,29,"Male",50,172,16.90102758,101,64,1,91,"Non-Smoker",15,4,6,88,114,"Normal/No Major Risk",NA
+132,51,"Male",69,159,27.29322416,140,81,4,75,"Occasional",15,1,4,119,179,"Pre-Diabetes",NA
+133,87,"Female",59,138,30.98088637,158,100,4,126,"Chainsmoker",0,7,4,146,256,"Metabolic Syndrome",NA
+134,60,"Female",52,152,22.50692521,136,76,3,98,"Occasional",5,3,4,104,181,"Pre-Diabetes",NA
+135,79,"Male",66,153,28.19428425,142,95,4,115,"Chainsmoker",1,4,4,129,235,"Normal/No Major Risk",NA
+136,37,"Male",76,175,24.81632653,129,77,2,103,"Occasional",1,4,5,117,171,"Pre-Diabetes",NA
+137,62,"Female",58,141,29.17358282,139,85,3,98,"Non-Smoker",0,5,5,137,188,"Normal/No Major Risk",NA
+138,62,"Male",69,175,22.53061224,NA,NA,0,104,"Occasional",11,4,4,106,188,"Pre-Diabetes",NA
+139,30,"Male",78,163,29.35752192,128,73,2,136,"Occasional",4,10,5,147,196,"Insulin Resistance",NA
+140,83,"Female",51,161,19.67516685,131,82,3,99,"Occasional",13,5,4,97,193,"Normal/No Major Risk",NA
+141,53,"Male",73,166,26.4915082,143,83,4,90,"Occasional",5,5,5,126,184,"Normal/No Major Risk",NA
+142,52,"Female",68,146,31.9009195,129,86,3,70,"Non-Smoker",11,2,5,142,176,"Normal/No Major Risk",NA
+143,47,"Male",66,155,27.47138398,140,90,4,109,"Chainsmoker",2,8,7,140,203,"Normal/No Major Risk",NA
+144,78,"Male",65,158,26.03749399,147,90,4,122,"Occasional",8,8,5,130,219,"Insulin Resistance",NA
+145,62,"Male",72,159,28.47988608,151,95,4,97,"Chainsmoker",2,4,5,132,213,"Normal/No Major Risk",NA
+146,69,"Female",70,139,36.2300088,152,89,4,88,"Non-Smoker",8,4,6,165,216,"Obesity",NA
+147,80,"Male",61,159,24.12879237,129,87,3,85,"Occasional",14,4,5,115,202,"Pre-Diabetes",NA
+148,44,"Female",58,141,29.17358282,142,81,4,110,"Occasional",6,7,6,143,198,"Normal/No Major Risk",NA
+149,56,"Female",56,146,26.27134547,136,85,3,104,"Occasional",2,6,6,129,195,"Normal/No Major Risk",NA
+150,41,"Female",65,148,29.67494522,136,81,3,103,"Non-Smoker",6,5,5,139,172,"Normal/No Major Risk",NA
+151,49,"Male",52,157,21.09619051,136,79,3,112,"Occasional",4,8,6,112,172,"Pre-Diabetes",NA
+152,51,"Male",66,172,22.30935641,130,77,3,116,"Occasional",1,8,6,117,178,"Pre-Diabetes",NA
+153,25,"Female",64,166,23.22543185,118,76,1,100,"Chainsmoker",10,3,4,107,164,"Pre-Diabetes",NA
+154,63,"Male",78,159,30.85320992,141,82,4,128,"Non-Smoker",3,9,6,153,204,"Normal/No Major Risk",NA
+155,28,"Female",68,162,25.91068435,129,75,2,89,"Occasional",5,3,5,120,163,"Pre-Diabetes",NA
+156,58,"Female",56,142,27.77226741,134,78,3,91,"Non-Smoker",14,5,6,133,174,"Normal/No Major Risk",NA
+157,70,"Female",74,170,25.60553633,142,86,4,119,"Occasional",1,8,6,130,210,"Pheochromocytoma",NA
+158,63,"Male",48,153,20.504934,139,80,3,65,"Occasional",13,1,5,94,164,"Normal/No Major Risk",NA
+159,60,"Female",66,135,36.21399177,135,85,3,121,"Occasional",0,7,6,171,237,"Obesity",NA
+160,72,"Male",73,162,27.81588173,127,84,3,87,"Non-Smoker",13,4,6,131,188,"Normal/No Major Risk",NA
+161,85,"Male",64,169,22.40817899,144,85,4,NA,"Chainsmoker",16,6,6,114,176,"Pre-Diabetes",NA
+162,60,"Female",54,161,20.83252961,133,81,3,85,"Chainsmoker",13,5,5,103,180,"Pre-Diabetes",NA
+163,88,"Female",72,134,40.09801738,145,97,4,107,"Chainsmoker",0,7,5,184,280,"Metabolic Syndrome",NA
+164,66,"Female",70,144,33.75771605,153,92,4,89,"Chainsmoker",5,5,5,155,234,"Normal/No Major Risk",NA
+165,53,"Male",45,157,18.25631871,124,72,2,93,"Occasional",15,5,6,95,160,"Normal/No Major Risk",NA
+166,87,"Male",70,144,33.75771605,137,81,3,118,"Non-Smoker",4,6,4,155,235,"Normal/No Major Risk",NA
+167,24,"Female",44,132,25.25252525,121,71,2,74,"Non-Smoker",14,2,5,115,131,"Pre-Diabetes",NA
+168,22,"Female",56,145,26.63495838,120,71,2,66,"Non-Smoker",12,3,8,129,131,"Normal/No Major Risk",NA
+169,47,"Female",58,164,21.56454491,121,75,2,114,"Non-Smoker",0,7,5,110,153,"Pre-Diabetes",NA
+170,90,"Female",60,148,27.39225712,149,92,4,121,"Occasional",8,7,4,132,237,"Insulin Resistance",NA
+171,74,"Female",76,162,28.95900015,134,86,3,104,"Occasional",7,7,6,142,220,"Normal/No Major Risk",NA
+172,49,"Female",62,131,36.12843074,145,87,4,98,"Chainsmoker",12,4,4,161,232,"Obesity",NA
+173,59,"Male",74,151,32.4547169,141,80,4,111,"Non-Smoker",4,5,4,148,203,"Normal/No Major Risk",NA
+174,78,"Female",61,132,35.00918274,150,95,4,100,"Chainsmoker",9,3,4,154,252,"Obesity",NA
+175,24,"Female",70,157,28.398718,133,79,3,90,"Chainsmoker",7,5,6,136,176,"Normal/No Major Risk",NA
+176,38,"Male",66,143,32.27541689,131,85,3,109,"Chainsmoker",9,7,6,155,209,"Normal/No Major Risk",NA
+177,63,"Male",74,163,27.85200798,140,86,4,105,"Occasional",5,5,4,129,204,"Normal/No Major Risk",NA
+178,72,"Female",74,155,30.8012487,146,92,4,109,"Occasional",6,5,4,141,225,"Normal/No Major Risk",NA
+179,76,"Female",71,169,24.85907356,131,72,3,126,"Non-Smoker",7,7,4,121,195,"Pre-Diabetes",NA
+180,84,"Female",76,138,39.90758244,150,99,4,115,"Chainsmoker",8,6,4,180,282,"Obesity",NA
+181,34,"Female",61,152,26.40235457,132,84,3,95,"Chainsmoker",15,3,4,120,181,"Pre-Diabetes",NA
+182,49,"Female",58,140,29.59183673,141,87,4,103,"Occasional",6,3,4,132,201,"Normal/No Major Risk",NA
+183,36,"Female",55,153,23.49523687,124,77,2,99,"Chainsmoker",7,5,5,114,176,"Pre-Diabetes",NA
+184,68,"Female",61,148,27.84879474,146,90,4,110,"Chainsmoker",12,6,4,131,222,"Normal/No Major Risk",NA
+185,72,"Female",66,161,25.46198063,141,92,4,93,"Chainsmoker",16,6,6,126,213,"Normal/No Major Risk",NA
+187,28,"Male",70,164,26.0261749,127,78,2,138,"Occasional",0,8,4,128,183,"Depression",NA
+188,26,"Male",74,167,26.53375883,134,84,3,120,"Chainsmoker",4,10,7,140,182,"Normal/No Major Risk",NA
+189,68,"Male",60,160,23.4375,138,87,3,95,"Chainsmoker",9,4,6,114,199,"Pre-Diabetes",NA
+190,71,"Female",62,155,25.80645161,144,89,4,95,"Chainsmoker",6,3,4,117,213,"Pre-Diabetes",NA
+191,56,"Male",67,158,26.83864765,127,81,3,83,"Non-Smoker",15,1,4,117,166,"Pre-Diabetes",NA
+192,50,"Male",71,175,23.18367347,123,67,2,145,"Non-Smoker",0,9,4,119,174,"Depression",NA
+193,43,"Female",75,166,27.21730295,125,73,2,117,"Non-Smoker",4,6,4,129,172,"Normal/No Major Risk",NA
+194,23,"Female",65,166,23.58832922,114,63,1,92,"Non-Smoker",9,7,9,126,128,"Normal/No Major Risk",NA
+195,81,"Female",61,154,25.72103221,148,95,4,108,"Chainsmoker",9,5,4,121,228,"Pre-Diabetes",NA
+196,72,"Male",69,167,24.74093729,140,80,4,126,"Occasional",3,8,6,127,212,"Normal/No Major Risk",NA
+197,63,"Female",72,152,31.1634349,153,95,4,79,"Chainsmoker",11,2,5,139,215,"Normal/No Major Risk",NA
+198,67,"Female",55,167,19.72103697,123,71,2,95,"Non-Smoker",8,4,5,97,156,"Normal/No Major Risk",NA
+199,36,"Female",57,162,21.71925011,120,73,2,114,"Chainsmoker",16,5,4,105,172,"Pre-Diabetes",NA
+200,42,"Female",50,164,18.59012493,133,75,3,107,"Occasional",16,7,5,98,154,"Insulin Resistance",NA
+201,82,"Male",75,151,32.89329415,140,81,4,98,"Non-Smoker",9,5,5,152,220,"Normal/No Major Risk",NA
+202,23,"Male",66,159,26.10656224,128,83,3,81,"Chainsmoker",6,3,6,122,162,"Pre-Diabetes",NA
+203,59,"Female",57,139,29.50157859,146,85,4,105,"Chainsmoker",7,3,4,132,219,"Normal/No Major Risk",NA
+204,86,"Female",61,149,27.47623981,144,94,4,100,"Chainsmoker",0,6,6,134,236,"Normal/No Major Risk",NA
+205,41,"Male",47,157,19.06771066,139,87,3,80,"Chainsmoker",15,3,6,94,156,"Normal/No Major Risk",NA
+206,28,"Female",53,138,27.83028775,126,71,2,132,"Non-Smoker",2,7,4,133,165,"Insulin Resistance",NA
+207,42,"Male",56,143,27.38520221,139,92,4,105,"Chainsmoker",11,5,4,128,196,"Normal/No Major Risk",NA
+208,55,"Female",52,136,28.11418685,137,80,3,110,"Non-Smoker",15,7,6,138,181,"Normal/No Major Risk",NA
+209,45,"Female",73,149,32.88140174,135,82,3,91,"Non-Smoker",0,4,6,152,181,"Normal/No Major Risk",NA
+210,78,"Male",61,161,23.53304271,136,73,3,122,"Non-Smoker",9,8,4,118,189,"Pre-Diabetes",NA
+211,90,"Female",65,154,27.40765728,140,96,4,100,"Chainsmoker",14,5,4,128,237,"Normal/No Major Risk",NA
+212,61,"Male",54,170,18.68512111,125,71,2,90,"Non-Smoker",14,1,4,85,147,"Normal/No Major Risk",NA
+213,69,"Female",67,162,25.52964487,138,93,4,133,"Chainsmoker",0,7,4,124,227,"Pre-Diabetes",NA
+214,82,"Male",57,168,20.19557823,127,78,2,135,"Non-Smoker",1,10,6,113,189,"Pre-Diabetes",NA
+215,81,"Female",54,167,19.36247266,126,72,2,83,"Non-Smoker",5,3,6,95,162,"Normal/No Major Risk",NA
+216,18,"Female",63,154,26.56434475,124,85,3,132,"Chainsmoker",0,9,6,136,181,"Normal/No Major Risk",NA
+217,58,"Male",73,140,37.24489796,142,85,4,81,"Occasional",7,3,6,167,227,"Obesity",NA
+218,44,"Male",60,175,19.59183673,124,67,2,117,"Non-Smoker",5,7,4,100,146,"Pre-Diabetes",NA
+219,52,"Female",72,134,40.09801738,145,93,4,135,"Chainsmoker",4,7,4,182,259,"Cardiovascular Disease",NA
+220,83,"Female",52,162,19.81405274,140,88,4,64,"Chainsmoker",10,1,5,91,190,"Normal/No Major Risk",NA
+221,20,"Male",66,142,32.73160087,118,80,3,69,"Non-Smoker",7,3,8,153,148,"Normal/No Major Risk",NA
+222,65,"Female",69,146,32.37005067,141,84,4,93,"Non-Smoker",3,4,5,147,198,"Normal/No Major Risk",NA
+223,39,"Female",57,131,33.21484762,129,88,3,98,"Chainsmoker",11,4,4,149,211,"Normal/No Major Risk",NA
+224,84,"Male",65,172,21.97133586,143,92,4,88,"Chainsmoker",16,5,6,110,206,"Pre-Diabetes",NA
+225,58,"Female",71,149,31.98054142,146,85,4,99,"Occasional",1,5,6,150,216,"Normal/No Major Risk",NA
+226,80,"Female",79,139,40.88815279,142,95,4,120,"Chainsmoker",4,8,6,192,285,"Obesity",NA
+227,50,"Male",60,174,19.81767737,118,75,1,105,"Non-Smoker",2,8,7,109,145,"Pre-Diabetes",NA
+228,48,"Female",77,165,28.28282828,127,79,2,101,"Non-Smoker",2,4,6,133,172,"Normal/No Major Risk",NA
+229,27,"Male",58,168,20.54988662,128,69,2,81,"Occasional",8,3,5,98,140,"Normal/No Major Risk",NA
+230,73,"Male",64,148,29.2184076,149,87,4,79,"Chainsmoker",15,1,4,127,218,"Normal/No Major Risk",NA
+231,40,"Male",67,163,25.21735858,137,79,3,84,"Occasional",16,3,5,117,168,"Pre-Diabetes",NA
+232,89,"Female",63,151,27.63036709,133,81,3,86,"Non-Smoker",10,2,4,123,202,"Pre-Diabetes",NA
+233,83,"Male",71,157,28.80441397,141,95,4,98,"Chainsmoker",6,6,6,139,237,"Normal/No Major Risk",NA
+234,87,"Male",51,173,17.04032878,123,82,3,110,"Occasional",15,7,5,92,192,"Hyperthyroidism",NA
+235,50,"Male",69,151,30.26183062,145,92,4,120,"Chainsmoker",0,9,6,151,220,"Pheochromocytoma",NA
+236,80,"Female",60,166,21.77384236,137,78,3,82,"Occasional",13,3,6,105,192,"Pre-Diabetes",NA
+237,80,"Male",50,154,21.08281329,140,85,4,83,"Chainsmoker",15,2,4,96,200,"Normal/No Major Risk",NA
+238,23,"Male",58,154,24.45606342,121,78,2,122,"Chainsmoker",2,9,5,126,173,"Insulin Resistance",NA
+239,53,"Female",52,130,30.76923077,140,87,4,72,"Chainsmoker",11,2,5,137,202,"Normal/No Major Risk",NA
+240,83,"Male",82,167,29.4022733,148,90,4,119,"Chainsmoker",7,8,5,144,243,"Insulin Resistance",NA
+241,75,"Female",75,152,32.46191136,146,97,4,110,"Chainsmoker",9,4,4,146,243,"Normal/No Major Risk",NA
+242,43,"Male",74,174,24.44180209,130,86,3,133,"Chainsmoker",0,9,4,124,197,"Depression",NA
+243,89,"Male",77,163,28.98114344,133,86,3,119,"Non-Smoker",14,7,4,138,217,"Insulin Resistance",NA
+244,55,"Female",66,135,36.21399177,140,82,4,134,"Non-Smoker",3,8,4,169,220,"PCOS",NA
+245,27,"Female",70,144,33.75771605,137,85,3,94,"Chainsmoker",1,5,7,159,202,"Normal/No Major Risk",NA
+246,32,"Female",53,150,23.55555556,128,76,2,100,"Chainsmoker",9,6,5,116,170,"Pre-Diabetes",NA
+247,84,"Male",66,168,23.38435374,132,82,3,97,"Chainsmoker",9,4,5,112,217,"Pre-Diabetes",NA
+248,32,"Male",48,174,15.85414189,106,59,0,80,"Non-Smoker",14,5,7,87,107,"Normal/No Major Risk",NA
+249,68,"Male",51,141,25.65263317,149,88,4,102,"Chainsmoker",15,4,4,119,210,"Pre-Diabetes",NA
+250,62,"Female",69,135,37.8600823,155,101,4,88,"Chainsmoker",14,5,5,171,244,"Obesity",NA
+251,60,"Male",59,149,26.57537949,130,71,3,122,"Non-Smoker",7,8,4,130,184,"Insulin Resistance",NA
+252,56,"Female",57,166,20.68515024,135,87,3,90,"Chainsmoker",10,4,5,101,179,"Pre-Diabetes",NA
+253,29,"Male",51,157,20.69049454,129,78,2,94,"Occasional",15,2,4,95,145,"Normal/No Major Risk",NA
+254,82,"Female",74,163,27.85200798,138,87,3,113,"Chainsmoker",7,8,6,139,236,"Normal/No Major Risk",NA
+255,80,"Male",50,165,18.36547291,114,71,1,75,"Non-Smoker",11,2,6,89,155,"Normal/No Major Risk",NA
+256,26,"Female",59,156,24.24391847,121,69,2,58,"Non-Smoker",11,2,9,119,120,"Pre-Diabetes",NA
+257,46,"Female",54,159,21.35991456,138,84,3,130,"Chainsmoker",2,10,5,115,186,"Pre-Diabetes",NA
+258,58,"Male",44,165,16.16161616,127,69,2,97,"Occasional",15,6,6,89,159,"Normal/No Major Risk",NA
+259,33,"Female",61,133,34.48470801,121,76,2,110,"Non-Smoker",2,7,6,164,185,"Normal/No Major Risk",NA
+260,83,"Female",47,137,25.04129149,137,80,3,93,"Non-Smoker",12,4,6,120,191,"Pre-Diabetes",NA
+261,20,"Female",55,156,22.60026298,109,66,1,94,"Non-Smoker",14,7,8,120,127,"Pre-Diabetes",NA
+262,31,"Female",59,150,26.22222222,129,74,2,70,"Occasional",14,1,6,119,159,"Pre-Diabetes",NA
+263,60,"Female",68,157,27.58732606,134,75,3,88,"Non-Smoker",14,5,5,130,176,"Normal/No Major Risk",NA
+264,25,"Female",62,144,29.89969136,126,75,2,81,"Non-Smoker",6,5,9,148,151,"Normal/No Major Risk",NA
+265,45,"Male",55,171,18.80920625,132,69,3,94,"Non-Smoker",12,7,7,103,136,"Pre-Diabetes",NA
+266,54,"Male",57,165,20.93663912,139,81,3,100,"Occasional",16,6,6,108,174,"Pre-Diabetes",NA
+267,53,"Female",63,164,23.42355741,131,76,3,77,"Non-Smoker",12,2,6,110,149,"Pre-Diabetes",NA
+268,22,"Female",69,143,33.74248129,126,83,3,140,"Occasional",3,10,4,163,202,"PCOS",NA
+269,90,"Male",59,172,19.94321255,137,83,3,107,"Chainsmoker",10,4,4,96,213,"Normal/No Major Risk",NA
+270,23,"Male",56,150,24.88888889,128,69,2,83,"Occasional",15,1,4,110,153,"Pre-Diabetes",NA
+271,57,"Female",72,145,34.24494649,136,93,4,109,"Occasional",6,6,6,161,224,"Normal/No Major Risk",NA
+272,74,"Male",75,169,26.25958475,142,92,4,124,"Chainsmoker",0,7,4,127,230,"Insulin Resistance",NA
+273,72,"Male",65,171,22.22906193,133,74,3,99,"Non-Smoker",6,5,5,109,172,"Pre-Diabetes",NA
+274,19,"Female",62,148,28.30533236,126,79,2,121,"Occasional",10,7,4,135,177,"Insulin Resistance",NA
+275,38,"Male",54,167,19.36247266,122,74,2,75,"Occasional",16,1,4,87,144,"Normal/No Major Risk",NA
+276,66,"Male",66,171,22.5710475,131,81,3,102,"Non-Smoker",4,5,5,110,170,"Pre-Diabetes",NA
+277,31,"Male",62,163,23.33546614,129,80,3,93,"Chainsmoker",9,6,7,119,169,"Pre-Diabetes",NA
+278,59,"Male",52,155,21.64412071,123,68,2,110,"Non-Smoker",15,7,5,111,165,"Pre-Diabetes",NA
+279,75,"Female",56,162,21.33821064,136,89,3,81,"Chainsmoker",8,3,5,101,195,"Pre-Diabetes",NA
+280,74,"Female",73,159,28.87544005,142,93,4,111,"Chainsmoker",7,8,5,142,230,"Insulin Resistance",NA
+281,64,"Male",72,151,31.57756239,140,94,4,106,"Occasional",5,3,4,140,220,"Normal/No Major Risk",NA
+282,64,"Male",76,154,32.0458762,146,92,4,83,"Chainsmoker",9,3,5,144,223,"Normal/No Major Risk",NA
+283,31,"Male",51,164,18.96192742,121,77,2,89,"Chainsmoker",8,5,6,98,149,"Normal/No Major Risk",NA
+284,58,"Female",70,142,34.71533426,139,83,3,104,"Occasional",11,4,4,155,225,"Normal/No Major Risk",NA
+285,66,"Female",55,147,25.45235781,139,90,4,66,"Occasional",14,2,5,116,184,"Pre-Diabetes",NA
+286,68,"Male",69,174,22.79032897,143,80,4,88,"Occasional",13,3,4,105,187,"Pre-Diabetes",NA
+287,81,"Female",47,131,27.38768137,144,91,4,85,"Occasional",9,4,5,128,213,"Normal/No Major Risk",NA
+288,30,"Female",56,138,29.40558706,134,83,3,65,"Occasional",11,3,9,142,167,"Normal/No Major Risk",NA
+289,89,"Male",52,173,17.37445287,121,68,2,98,"Non-Smoker",15,6,5,91,170,"Normal/No Major Risk",NA
+290,70,"Female",73,170,25.25951557,134,85,3,103,"Occasional",2,5,5,121,202,"Pre-Diabetes",NA
+291,66,"Female",58,137,30.90201929,160,99,4,124,"Chainsmoker",7,8,4,148,238,"Cardiovascular Disease",NA
+292,65,"Female",52,137,27.70525867,135,83,3,104,"Non-Smoker",2,5,6,133,186,"Normal/No Major Risk",NA
+293,24,"Male",68,172,22.98539751,122,74,2,98,"Occasional",7,8,9,126,150,"Normal/No Major Risk",NA
+294,53,"Male",51,153,21.78649237,137,74,3,96,"Occasional",16,3,4,101,170,"Pre-Diabetes",NA
+295,43,"Female",74,157,30.02150189,138,91,4,101,"Occasional",6,7,6,146,194,"Normal/No Major Risk",NA
+296,20,"Female",64,142,31.73973418,117,80,3,97,"Non-Smoker",8,8,9,161,156,"Normal/No Major Risk",NA
+297,38,"Male",49,163,18.44254582,117,68,1,60,"Occasional",11,1,6,88,131,"Normal/No Major Risk",NA
+298,28,"Male",53,173,17.70857697,106,68,1,93,"Occasional",6,7,8,101,134,"Pre-Diabetes",NA
+299,35,"Female",64,169,22.40817899,122,70,2,104,"Non-Smoker",4,5,5,110,143,"Pre-Diabetes",NA
+300,32,"Male",65,148,29.67494522,127,67,2,119,"Non-Smoker",8,8,6,147,172,"Normal/No Major Risk",NA
+301,73,"Male",51,147,23.60127725,137,79,3,78,"Non-Smoker",13,3,5,110,171,"Pre-Diabetes",NA
+302,73,"Female",60,130,35.50295858,150,90,4,89,"Non-Smoker",13,4,6,162,218,"Obesity",NA
+303,82,"Female",47,136,25.41089965,151,88,4,93,"Chainsmoker",9,4,5,120,221,"Pre-Diabetes",NA
+304,28,"Female",54,167,19.36247266,125,75,2,100,"Chainsmoker",15,7,5,101,154,"Pre-Diabetes",NA
+305,33,"Female",65,156,26.70940171,120,72,2,104,"Non-Smoker",15,6,5,129,154,"Normal/No Major Risk",NA
+306,77,"Male",61,164,22.67995241,125,77,2,101,"Non-Smoker",13,6,5,113,179,"Pre-Diabetes",NA
+307,26,"Male",70,151,30.70040788,132,87,3,112,"Occasional",3,8,9,157,185,"Normal/No Major Risk",NA
+308,81,"Male",49,143,23.96205193,130,74,3,94,"Non-Smoker",12,5,6,118,186,"Pre-Diabetes",NA
+309,37,"Female",57,153,24.34960912,107,65,1,117,"Non-Smoker",1,8,6,125,156,"Normal/No Major Risk",NA
+310,60,"Female",73,158,29.24210864,122,71,2,116,"Non-Smoker",8,7,5,141,194,"Insulin Resistance",NA
+311,66,"Male",65,163,24.4646016,127,72,2,101,"Non-Smoker",13,3,4,112,173,"Pre-Diabetes",NA
+312,49,"Female",56,154,23.61275089,135,80,3,82,"Occasional",6,3,5,110,169,"Pre-Diabetes",NA
+313,25,"Female",59,134,32.85809757,131,82,3,126,"Occasional",6,7,4,153,200,"Insulin Resistance",NA
+314,50,"Male",56,142,27.77226741,139,87,3,107,"Chainsmoker",13,7,5,135,205,"Insulin Resistance",NA
+315,79,"Female",81,154,34.15415753,138,89,3,115,"Non-Smoker",4,6,6,161,225,"Normal/No Major Risk",NA
+316,64,"Female",63,138,33.08128544,142,88,4,112,"Occasional",11,6,4,152,228,"Normal/No Major Risk",NA
+317,76,"Female",62,150,27.55555556,128,76,2,112,"Non-Smoker",9,4,4,126,198,"Normal/No Major Risk",NA
+318,83,"Female",72,132,41.32231405,140,83,4,116,"Non-Smoker",8,7,6,191,256,"Obesity",NA
+319,63,"Female",51,159,20.17325264,141,87,4,65,"Occasional",10,1,5,93,165,"Normal/No Major Risk",NA
+320,40,"Male",67,155,27.88761707,128,77,2,132,"Non-Smoker",9,8,4,136,174,"Insulin Resistance",NA
+321,27,"Male",62,173,20.71569381,115,64,1,64,"Non-Smoker",10,2,8,103,114,"Pre-Diabetes",NA
+322,24,"Female",47,147,21.75019668,124,80,3,74,"Chainsmoker",10,2,6,103,148,"Pre-Diabetes",NA
+323,56,"Male",61,154,25.72103221,122,71,2,138,"Non-Smoker",2,9,4,129,188,"Depression",NA
+324,58,"Male",56,158,22.43230252,125,73,2,117,"Occasional",10,6,4,110,187,"Pre-Diabetes",NA
+325,70,"Female",66,138,34.65658475,156,98,4,97,"Chainsmoker",8,6,5,161,243,"Normal/No Major Risk",NA
+326,21,"Female",64,160,25,124,75,2,99,"Non-Smoker",0,4,5,118,134,"Pre-Diabetes",NA
+327,18,"Male",65,174,21.46915048,121,69,2,83,"Occasional",12,3,5,102,136,"Pre-Diabetes",NA
+328,43,"Female",54,163,20.32443826,123,73,2,69,"Non-Smoker",16,4,7,103,125,"Pre-Diabetes",NA
+329,78,"Male",78,157,31.64428577,140,92,4,75,"Occasional",10,1,6,141,221,"Normal/No Major Risk",NA
+330,31,"Female",57,142,28.26820075,126,82,3,92,"Chainsmoker",7,6,7,139,182,"Normal/No Major Risk",NA
+331,28,"Male",54,151,23.68317179,107,68,1,139,"Non-Smoker",1,10,6,127,152,"Normal/No Major Risk",NA
+332,77,"Female",59,161,22.76146754,140,78,4,115,"Occasional",3,7,5,115,207,"Pre-Diabetes",NA
+333,88,"Male",69,149,31.0796811,135,84,3,141,"Non-Smoker",0,8,4,148,234,"Type 2 Diabetes",NA
+334,71,"Male",75,175,24.48979592,143,90,4,86,"Chainsmoker",15,5,6,120,203,"Pre-Diabetes",NA
+335,33,"Male",68,169,23.80869017,124,79,2,110,"Chainsmoker",2,8,7,125,176,"Normal/No Major Risk",NA
+336,44,"Male",55,154,23.19109462,127,77,2,113,"Chainsmoker",16,7,4,115,184,"Pre-Diabetes",NA
+337,81,"Female",55,144,26.52391975,135,83,3,114,"Occasional",10,7,4,128,223,"Insulin Resistance",NA
+338,43,"Male",67,159,26.50211621,130,78,3,104,"Occasional",2,4,4,122,181,"Pre-Diabetes",NA
+339,36,"Male",76,156,31.22945431,128,71,2,126,"Non-Smoker",4,8,5,151,182,"Insulin Resistance",NA
+340,90,"Female",69,131,40.20744712,147,88,4,117,"Occasional",0,8,5,187,277,"Metabolic Syndrome",NA
+341,23,"Female",61,137,32.5003996,134,85,3,74,"Chainsmoker",6,4,8,154,183,"Normal/No Major Risk",NA
+342,61,"Female",52,161,20.06095444,133,77,3,111,"Non-Smoker",12,7,6,106,161,"Pre-Diabetes",NA
+343,77,"Male",60,142,29.75600079,142,93,4,71,"Chainsmoker",14,1,5,131,221,"Normal/No Major Risk",NA
+344,73,"Female",81,168,28.69897959,128,78,2,85,"Non-Smoker",6,3,5,131,188,"Normal/No Major Risk",NA
+345,31,"Female",66,164,24.5389649,122,63,2,124,"Non-Smoker",1,10,6,130,155,"Normal/No Major Risk",NA
+346,89,"Male",73,172,24.67550027,138,90,4,71,"Chainsmoker",12,1,5,111,213,"Pre-Diabetes",NA
+347,47,"Female",47,131,27.38768137,144,90,4,111,"Chainsmoker",11,6,4,130,203,"Normal/No Major Risk",NA
+348,47,"Male",51,170,17.64705882,131,79,3,90,"Chainsmoker",16,7,7,99,162,"Normal/No Major Risk",NA
+349,33,"Female",74,158,29.64268547,126,74,2,125,"Non-Smoker",0,6,4,139,175,"Normal/No Major Risk",NA
+350,22,"Male",53,167,19.00390835,117,70,1,86,"Occasional",5,3,5,92,132,"Normal/No Major Risk",NA
+351,54,"Female",60,132,34.43526171,143,87,4,136,"Chainsmoker",1,7,4,160,243,"Metabolic Syndrome",NA
+352,76,"Female",65,161,25.07619305,139,97,4,101,"Chainsmoker",5,7,6,126,218,"Normal/No Major Risk",NA
+353,60,"Male",68,172,22.98539751,130,76,3,81,"Non-Smoker",9,3,6,110,155,"Pre-Diabetes",NA
+354,74,"Male",74,166,26.85440557,144,91,4,122,"Chainsmoker",3,9,6,137,227,"Normal/No Major Risk",NA
+355,38,"Female",62,138,32.55618568,130,79,3,101,"Occasional",7,8,7,160,197,"Normal/No Major Risk",NA
+356,23,"Female",56,137,29.83643242,120,66,2,74,"Non-Smoker",9,3,7,139,147,"Normal/No Major Risk",NA
+357,54,"Female",56,168,19.84126984,127,71,2,118,"Non-Smoker",13,7,4,101,153,"Pre-Diabetes",NA
+358,77,"Female",84,167,30.11940191,151,101,4,111,"Chainsmoker",4,7,5,144,237,"Cardiovascular Disease",NA
+359,78,"Female",59,161,22.76146754,138,85,3,113,"Chainsmoker",15,6,4,111,215,"Pre-Diabetes",NA
+360,21,"Female",59,168,20.90419501,121,73,2,81,"Chainsmoker",15,6,9,114,144,"Pre-Diabetes",NA
+361,69,"Male",73,141,36.71847493,140,85,4,108,"Non-Smoker",8,8,6,175,222,"Obesity",NA
+362,56,"Female",73,143,35.69856717,136,81,3,115,"Non-Smoker",6,7,6,169,212,"Obesity",NA
+363,82,"Female",64,135,35.11659808,147,98,4,114,"Occasional",3,6,5,162,254,"Obesity",NA
+364,54,"Female",64,132,36.73094582,128,81,3,109,"Non-Smoker",12,7,5,171,209,"PCOS",NA
+365,41,"Female",59,151,25.87605807,137,87,3,90,"Chainsmoker",16,3,4,118,184,"Pre-Diabetes",NA
+366,27,"Female",48,162,18.28989483,119,72,1,69,"Chainsmoker",16,2,6,89,135,"Normal/No Major Risk",NA
+367,35,"Male",62,171,21.20310523,128,74,2,106,"Occasional",15,7,5,109,160,"Pre-Diabetes",NA
+368,88,"Male",79,152,34.1932133,156,90,4,126,"Occasional",6,7,4,159,257,"Cardiovascular Disease",NA
+369,28,"Female",46,135,25.24005487,113,66,1,98,"Non-Smoker",12,7,6,127,142,"Normal/No Major Risk",NA
+370,83,"Male",75,154,31.62421994,149,98,4,78,"Chainsmoker",5,3,6,144,238,"Normal/No Major Risk",NA
+371,64,"Female",71,149,31.98054142,138,88,3,144,"Non-Smoker",2,9,4,154,219,"Type 2 Diabetes",NA
+372,62,"Female",53,143,25.91813781,138,78,3,105,"Non-Smoker",1,4,4,120,177,"Pre-Diabetes",NA
+373,50,"Male",69,172,23.32341806,124,77,2,93,"Occasional",13,4,5,111,176,"Pre-Diabetes",NA
+374,59,"Male",71,154,29.93759487,144,90,4,99,"Occasional",10,5,4,138,209,"Normal/No Major Risk",NA
+375,23,"Female",64,149,28.82753029,116,74,1,85,"Non-Smoker",6,6,7,141,146,"Normal/No Major Risk",NA
+376,42,"Male",71,152,30.73060942,138,93,4,111,"Chainsmoker",10,5,4,141,212,"Normal/No Major Risk",NA
+377,81,"Female",49,133,27.70083102,141,76,4,98,"Non-Smoker",15,6,6,135,199,"Normal/No Major Risk",NA
+378,77,"Male",68,156,27.94214333,132,81,3,121,"Non-Smoker",4,6,4,132,204,"Normal/No Major Risk",NA
+379,21,"Male",57,171,19.49317739,118,62,1,131,"Non-Smoker",2,9,6,108,131,"Pre-Diabetes",NA
+380,51,"Female",62,162,23.62444749,129,67,2,142,"Non-Smoker",2,8,4,118,174,"Depression",NA
+381,28,"Male",59,175,19.26530612,126,76,2,111,"Occasional",0,5,4,95,149,"Normal/No Major Risk",NA
+382,25,"Female",65,162,24.76756592,125,70,2,52,"Occasional",14,1,9,119,142,"Pre-Diabetes",NA
+383,40,"Female",59,144,28.4529321,122,74,2,88,"Non-Smoker",7,3,6,132,162,"Normal/No Major Risk",NA
+384,43,"Male",58,144,27.97067901,140,86,4,99,"Occasional",16,4,4,128,187,"Normal/No Major Risk",NA
+385,34,"Male",50,167,17.92821543,111,76,1,78,"Chainsmoker",12,2,6,88,145,"Normal/No Major Risk",NA
+386,31,"Female",61,154,25.72103221,123,75,2,78,"Non-Smoker",6,3,6,121,138,"Pre-Diabetes",NA
+387,68,"Male",73,160,28.515625,135,86,3,140,"Occasional",4,8,4,138,229,"Insulin Resistance",NA
+388,46,"Male",54,144,26.04166667,132,87,3,112,"Occasional",14,7,4,126,188,"Insulin Resistance",NA
+389,65,"Male",67,160,26.171875,145,90,4,78,"Chainsmoker",11,4,6,125,201,"Pre-Diabetes",NA
+390,90,"Female",59,166,21.41094498,145,84,4,116,"Chainsmoker",12,6,4,106,223,"Pre-Diabetes",NA
+391,66,"Female",71,144,34.23996914,161,101,4,110,"Chainsmoker",6,7,6,163,242,"Normal/No Major Risk",NA
+392,44,"Female",54,139,27.94886393,133,85,3,93,"Chainsmoker",6,4,6,132,197,"Normal/No Major Risk",NA
+393,42,"Male",63,173,21.0498179,124,83,3,117,"Occasional",2,7,5,108,170,"Pre-Diabetes",NA
+394,43,"Female",62,152,26.83518006,125,81,3,117,"Non-Smoker",0,4,4,123,171,"Pre-Diabetes",NA
+395,85,"Male",77,159,30.45765595,158,90,4,121,"Occasional",1,7,4,144,240,"Metabolic Syndrome",NA
+396,66,"Female",54,136,29.19550173,140,81,4,90,"Non-Smoker",13,1,4,127,186,"Normal/No Major Risk",NA
+397,71,"Female",77,154,32.46753247,132,82,3,111,"Non-Smoker",6,4,4,146,213,"Normal/No Major Risk",NA
+398,77,"Male",75,151,32.89329415,157,92,4,81,"Occasional",7,3,6,150,228,"Normal/No Major Risk",NA
+399,34,"Male",48,152,20.77562327,116,67,1,103,"Non-Smoker",10,6,6,107,133,"Pre-Diabetes",NA
+400,19,"Male",58,159,22.94213045,122,71,2,94,"Non-Smoker",13,5,5,112,125,"Pre-Diabetes",NA
+401,18,"Male",68,150,30.22222222,126,91,4,147,"Chainsmoker",4,9,4,147,201,"Insulin Resistance",NA
+402,46,"Male",66,165,24.24242424,124,80,3,109,"Occasional",11,7,6,123,180,"Pre-Diabetes",NA
+403,29,"Female",57,159,22.54657648,108,66,1,119,"Non-Smoker",14,7,4,112,142,"Pre-Diabetes",NA
+404,23,"Female",58,136,31.35813149,131,83,3,88,"Chainsmoker",11,6,7,151,187,"Normal/No Major Risk",NA
+405,83,"Male",61,175,19.91836735,133,86,3,113,"Chainsmoker",0,7,5,104,211,"Pre-Diabetes",NA
+406,78,"Male",78,161,30.09143166,148,88,4,137,"Occasional",4,10,6,152,240,"Normal/No Major Risk",NA
+407,24,"Female",43,147,19.89911611,118,71,1,109,"Non-Smoker",16,7,5,104,126,"Pre-Diabetes",NA
+408,51,"Female",79,170,27.33564014,136,85,3,114,"Chainsmoker",0,8,5,135,206,"Insulin Resistance",NA
+409,44,"Female",46,143,22.49498753,131,83,3,117,"Chainsmoker",16,7,4,112,186,"Pre-Diabetes",NA
+410,68,"Male",81,173,27.06405159,129,85,3,100,"Non-Smoker",7,6,6,132,186,"Normal/No Major Risk",NA
+411,65,"Male",60,152,25.96952909,151,94,4,105,"Chainsmoker",7,7,6,130,212,"Normal/No Major Risk",NA
+412,54,"Male",64,145,30.43995244,138,86,3,102,"Occasional",7,5,5,142,207,"Normal/No Major Risk",NA
+413,87,"Female",70,131,40.79016374,137,81,3,136,"Non-Smoker",2,8,4,187,264,"Type 2 Diabetes",NA
+414,65,"Female",74,168,26.21882086,129,81,3,63,"Non-Smoker",11,1,5,117,163,"Pre-Diabetes",NA
+415,70,"Male",73,156,29.99671269,152,94,4,94,"Occasional",14,6,6,144,217,"Normal/No Major Risk",NA
+416,50,"Female",65,133,36.74600034,137,77,3,67,"Non-Smoker",11,1,5,159,192,"Obesity",NA
+417,25,"Male",57,152,24.67105263,129,73,2,109,"Occasional",16,6,4,119,160,"Pre-Diabetes",NA
+418,37,"Male",69,151,30.26183062,129,88,3,105,"Occasional",5,4,4,137,193,"Normal/No Major Risk",NA
+419,57,"Male",51,173,17.04032878,121,72,2,90,"Chainsmoker",15,4,5,86,167,"Normal/No Major Risk",NA
+420,22,"Male",50,175,16.32653061,106,66,1,64,"Occasional",16,2,7,83,115,"Normal/No Major Risk",NA
+422,37,"Female",71,135,38.95747599,129,72,2,109,"Non-Smoker",7,8,6,184,202,"Obesity",NA
+423,60,"Male",58,148,26.47918188,134,86,3,71,"Occasional",10,2,5,120,186,"Pre-Diabetes",NA
+424,67,"Female",78,159,30.85320992,157,96,4,103,"Chainsmoker",6,6,5,145,228,"Normal/No Major Risk",NA
+425,90,"Female",83,165,30.48668503,154,101,4,130,"Chainsmoker",1,6,4,142,260,"Normal/No Major Risk",NA
+426,75,"Female",60,135,32.9218107,141,97,4,121,"Occasional",8,6,4,152,241,"Normal/No Major Risk",NA
+427,84,"Female",63,137,33.56598647,149,97,4,112,"Occasional",0,7,5,158,246,"Metabolic Syndrome",NA
+428,71,"Female",65,133,36.74600034,140,91,4,73,"Occasional",15,1,5,159,232,"Obesity",NA
+429,37,"Male",65,175,21.2244898,114,65,1,104,"Non-Smoker",8,4,4,101,138,"Pre-Diabetes",NA
+430,54,"Male",77,168,27.28174603,142,85,4,128,"Chainsmoker",4,9,5,137,213,"Insulin Resistance",NA
+431,56,"Male",49,156,20.13477975,125,68,2,79,"Non-Smoker",12,2,5,95,140,"Normal/No Major Risk",NA
+432,70,"Male",72,149,32.43097158,140,83,4,133,"Non-Smoker",4,9,6,160,218,"Normal/No Major Risk",NA
+433,41,"Male",52,140,26.53061224,143,86,4,83,"Chainsmoker",15,6,7,132,185,"Normal/No Major Risk",NA
+434,57,"Male",72,171,24.62296091,136,76,3,91,"Occasional",11,6,5,120,185,"Pre-Diabetes",NA
+435,68,"Female",72,134,40.09801738,146,91,4,111,"Occasional",16,6,4,180,254,"Obesity",NA
+436,19,"Male",53,140,27.04081633,131,83,3,93,"Occasional",1,6,7,134,159,"Normal/No Major Risk",NA
+437,28,"Female",60,156,24.65483235,118,75,1,101,"Chainsmoker",7,8,7,129,174,"Normal/No Major Risk",NA
+438,37,"Male",59,165,21.67125803,131,77,3,119,"Chainsmoker",0,7,6,113,179,"Pre-Diabetes",NA
+439,73,"Female",49,130,28.99408284,144,96,4,109,"Chainsmoker",9,5,4,134,233,"Normal/No Major Risk",NA
+440,72,"Male",65,166,23.58832922,127,79,2,85,"Non-Smoker",5,3,5,110,171,"Pre-Diabetes",NA
+441,28,"Male",67,150,29.77777778,134,82,3,101,"Chainsmoker",9,7,7,147,188,"Normal/No Major Risk",NA
+443,67,"Male",66,150,29.33333333,142,88,4,125,"Chainsmoker",4,7,4,139,234,"Insulin Resistance",NA
+444,52,"Female",74,157,30.02150189,151,87,4,117,"Chainsmoker",1,7,5,144,217,"Metabolic Syndrome",NA
+445,73,"Female",64,154,26.98600101,128,76,2,111,"Non-Smoker",16,7,4,130,195,"Insulin Resistance",NA
+446,49,"Male",71,153,30.33021487,140,83,4,114,"Occasional",5,6,4,141,207,"Normal/No Major Risk",NA
+447,34,"Female",59,132,33.86134068,138,85,3,77,"Occasional",8,3,7,155,189,"Normal/No Major Risk",NA
+448,72,"Male",59,140,30.10204082,151,98,4,94,"Chainsmoker",8,3,4,134,230,"Normal/No Major Risk",NA
+449,73,"Male",81,158,32.44672328,134,86,3,98,"Non-Smoker",0,5,6,152,206,"Normal/No Major Risk",NA
+450,25,"Male",63,152,27.26800554,125,82,3,74,"Occasional",11,3,6,127,160,"Normal/No Major Risk",NA
+451,64,"Male",74,146,34.71570651,141,100,4,128,"Chainsmoker",1,9,5,167,251,"Metabolic Syndrome",NA
+452,34,"Male",44,151,19.29739924,124,72,2,87,"Chainsmoker",13,3,4,91,154,"Normal/No Major Risk",NA
+453,81,"Female",66,132,37.87878788,159,93,4,108,"Occasional",9,7,6,178,257,"Obesity",NA
+454,45,"Male",56,168,19.84126984,126,84,3,91,"Chainsmoker",8,5,5,99,168,"Normal/No Major Risk",NA
+455,35,"Female",56,152,24.23822715,119,73,1,113,"Chainsmoker",4,5,4,115,181,"Pre-Diabetes",NA
+456,88,"Male",59,154,24.87771968,129,81,3,120,"Non-Smoker",0,7,5,124,206,"Pre-Diabetes",NA
+457,89,"Male",76,166,27.58020032,128,79,2,95,"Non-Smoker",11,6,6,134,205,"Normal/No Major Risk",NA
+458,60,"Male",70,166,25.40281608,145,90,4,100,"Chainsmoker",5,3,4,116,201,"Pre-Diabetes",NA
+459,27,"Female",53,160,20.703125,123,77,2,84,"Occasional",10,1,4,93,142,"Normal/No Major Risk",NA
+460,77,"Female",70,132,40.17447199,159,93,4,86,"Occasional",7,3,6,179,255,"Obesity",NA
+461,75,"Male",62,159,24.52434635,137,80,3,101,"Occasional",7,5,5,118,206,"Pre-Diabetes",NA
+462,72,"Male",59,154,24.87771968,138,86,3,123,"Chainsmoker",5,7,4,122,221,"Pre-Diabetes",NA
+463,56,"Male",59,149,26.57537949,134,81,3,77,"Occasional",14,1,4,116,185,"Pre-Diabetes",NA
+464,77,"Female",70,145,33.29369798,146,98,4,107,"Chainsmoker",7,3,4,147,250,"Normal/No Major Risk",NA
+465,85,"Male",58,147,26.84066824,148,83,4,136,"Occasional",6,8,4,131,235,"Insulin Resistance",NA
+466,22,"Female",54,157,21.90758246,113,71,1,86,"Non-Smoker",9,5,7,112,122,"Pre-Diabetes",NA
+467,86,"Male",50,152,21.64127424,136,89,3,92,"Chainsmoker",11,2,4,99,210,"Normal/No Major Risk",NA
+468,54,"Female",67,149,30.17882077,140,92,4,99,"Occasional",11,3,4,135,202,"Normal/No Major Risk",NA
+469,56,"Male",57,141,28.67059001,134,85,3,94,"Occasional",3,4,5,133,196,"Normal/No Major Risk",NA
+470,44,"Female",64,138,33.60638521,138,76,3,93,"Non-Smoker",15,4,5,152,183,"Normal/No Major Risk",NA
+471,55,"Female",75,143,36.6766101,139,95,4,102,"Chainsmoker",3,4,6,167,240,"Obesity",NA
+472,64,"Male",63,149,28.37710013,138,87,3,112,"Occasional",10,7,4,136,213,"Insulin Resistance",NA
+473,42,"Male",80,160,31.25,141,86,4,127,"Non-Smoker",1,7,4,147,187,"Insulin Resistance",NA
+474,89,"Male",84,170,29.06574394,134,76,3,144,"Non-Smoker",0,9,4,142,227,"Depression",NA
+475,68,"Female",69,130,40.82840237,149,98,4,129,"Chainsmoker",7,7,4,185,278,"Cardiovascular Disease",NA
+476,57,"Male",65,155,27.05515088,127,73,2,142,"Non-Smoker",0,8,4,132,193,"Depression",NA
+477,22,"Male",65,171,22.22906193,124,77,2,88,"Occasional",9,4,6,109,143,"Pre-Diabetes",NA
+478,87,"Male",79,158,31.64556962,146,97,4,98,"Occasional",9,6,6,151,236,"Normal/No Major Risk",NA
+479,89,"Female",78,152,33.76038781,150,91,4,111,"Non-Smoker",8,4,4,151,232,"Normal/No Major Risk",NA
+480,84,"Female",60,166,21.77384236,141,88,4,116,"Occasional",10,7,4,109,208,"Pre-Diabetes",NA
+481,62,"Male",80,148,36.5230095,151,94,4,93,"Chainsmoker",4,4,5,164,241,"Obesity",NA
+482,26,"Male",63,141,31.68854685,139,85,3,98,"Chainsmoker",6,6,5,149,194,"Normal/No Major Risk",NA
+483,83,"Female",61,153,26.05835362,142,78,4,97,"Non-Smoker",13,5,5,124,195,"Pre-Diabetes",NA
+484,62,"Female",50,142,24.79666733,132,80,3,105,"Non-Smoker",10,6,5,121,174,"Pre-Diabetes",NA
+485,86,"Female",64,135,35.11659808,151,96,4,98,"Chainsmoker",13,6,5,162,259,"Obesity",NA
+486,30,"Male",62,170,21.4532872,128,81,3,71,"Chainsmoker",7,3,7,106,148,"Pre-Diabetes",NA
+487,41,"Female",59,145,28.06183115,131,78,3,84,"Non-Smoker",5,3,5,128,160,"Normal/No Major Risk",NA
+488,84,"Male",66,144,31.8287037,147,92,4,116,"Chainsmoker",8,5,4,145,254,"Normal/No Major Risk",NA
+489,43,"Male",73,155,30.38501561,142,92,4,91,"Chainsmoker",5,5,5,142,201,"Normal/No Major Risk",NA
+490,87,"Male",65,156,26.70940171,136,90,4,110,"Occasional",9,6,6,131,226,"Normal/No Major Risk",NA
+491,31,"Female",59,151,25.87605807,119,72,1,89,"Non-Smoker",6,3,5,120,145,"Pre-Diabetes",NA
+492,52,"Male",58,151,25.43748081,136,88,3,124,"Chainsmoker",7,6,4,122,206,"Pre-Diabetes",NA
+493,49,"Male",60,170,20.76124567,130,82,3,79,"Occasional",11,5,7,107,158,"Pre-Diabetes",NA
+494,38,"Male",55,147,25.45235781,123,74,2,110,"Non-Smoker",12,7,5,126,158,"Insulin Resistance",NA
+495,66,"Female",54,154,22.76943835,132,74,3,99,"Non-Smoker",2,4,5,109,168,"Pre-Diabetes",NA
+496,79,"Male",75,153,32.03895937,151,98,4,135,"Occasional",2,7,4,150,248,"Metabolic Syndrome",NA
+497,54,"Female",64,139,33.12457947,141,88,4,93,"Chainsmoker",15,2,4,144,222,"Normal/No Major Risk",NA
+498,76,"Male",79,164,29.37239738,141,88,4,112,"Chainsmoker",5,8,6,145,236,"Normal/No Major Risk",NA
+499,74,"Male",60,143,29.34128808,141,78,4,65,"Non-Smoker",14,1,6,131,187,"Normal/No Major Risk",NA
+500,77,"Female",72,167,25.81663021,137,91,4,102,"Occasional",3,5,5,123,209,"Pre-Diabetes",NA
+501,72,"Male",78,141,39.23343896,140,89,4,90,"Occasional",5,4,6,177,247,"Obesity",NA
+502,85,"Male",75,156,30.81854043,146,95,4,139,"Occasional",4,10,4,151,248,"Cardiovascular Disease",NA
+503,37,"Male",60,165,22.03856749,124,82,3,130,"Chainsmoker",9,8,4,112,181,"Pre-Diabetes",NA
+504,32,"Female",49,137,26.10687836,121,84,3,101,"Chainsmoker",5,6,5,126,183,"Normal/No Major Risk",NA
+505,65,"Female",61,154,25.72103221,139,90,4,127,"Chainsmoker",0,10,6,135,220,"Normal/No Major Risk",NA
+506,74,"Male",51,146,23.92568962,144,82,4,115,"Chainsmoker",8,7,6,122,216,"Pre-Diabetes",NA
+507,46,"Female",44,164,16.35930993,126,73,2,97,"Occasional",16,7,6,91,145,"Normal/No Major Risk",NA
+508,19,"Female",51,135,27.98353909,119,81,3,123,"Occasional",9,6,4,132,172,"Normal/No Major Risk",NA
+509,38,"Male",59,142,29.26006745,120,80,3,143,"Occasional",3,10,4,145,206,"Insulin Resistance",NA
+510,58,"Male",53,163,19.94805977,126,76,2,106,"Occasional",13,6,4,100,175,"Normal/No Major Risk",NA
+511,25,"Male",48,145,22.82996433,118,78,1,104,"Occasional",16,6,5,113,152,"Pre-Diabetes",NA
+512,80,"Male",77,145,36.62306778,150,93,4,99,"Chainsmoker",5,4,4,162,262,"Obesity",NA
+513,21,"Male",62,145,29.48870392,119,71,1,124,"Non-Smoker",11,7,4,140,164,"Insulin Resistance",NA
+514,55,"Male",62,145,29.48870392,142,80,4,142,"Occasional",0,8,4,142,221,"Depression",NA
+515,21,"Male",58,142,28.7641341,121,82,3,74,"Chainsmoker",16,3,6,133,167,"Normal/No Major Risk",NA
+516,65,"Male",64,152,27.70083102,134,76,3,96,"Non-Smoker",12,4,4,127,185,"Normal/No Major Risk",NA
+517,64,"Male",47,160,18.359375,136,87,3,99,"Chainsmoker",14,6,6,97,182,"Normal/No Major Risk",NA
+518,46,"Female",69,164,25.6543724,143,92,4,84,"Chainsmoker",14,5,7,127,187,"Normal/No Major Risk",NA
+519,74,"Female",69,168,24.44727891,129,78,2,113,"Occasional",10,6,4,118,207,"Pre-Diabetes",NA
+520,64,"Male",54,140,27.55102041,142,77,4,121,"Non-Smoker",0,8,5,136,191,"Pheochromocytoma",NA
+521,66,"Male",58,140,29.59183673,135,86,3,106,"Non-Smoker",11,5,4,136,197,"Normal/No Major Risk",NA
+522,53,"Female",67,136,36.22404844,147,95,4,78,"Chainsmoker",6,3,5,161,224,"Obesity",NA
+523,66,"Female",57,152,24.67105263,135,76,3,90,"Non-Smoker",10,1,4,109,171,"Pre-Diabetes",NA
+524,81,"Female",56,130,33.13609467,141,92,4,125,"Chainsmoker",10,7,4,155,258,"Cardiovascular Disease",NA
+525,75,"Female",67,167,24.02380867,137,74,3,87,"Non-Smoker",11,4,5,114,174,"Pre-Diabetes",NA
+526,88,"Male",82,153,35.02926225,152,81,4,114,"Non-Smoker",5,5,4,158,238,"Obesity",NA
+527,50,"Male",49,162,18.67093431,127,74,2,71,"Occasional",15,3,7,95,149,"Normal/No Major Risk",NA
+528,69,"Male",67,143,32.76443836,149,90,4,109,"Non-Smoker",0,4,4,147,210,"Normal/No Major Risk",NA
+529,52,"Female",72,141,36.21548212,141,88,4,103,"Occasional",3,4,4,161,223,"Obesity",NA
+530,48,"Female",62,159,24.52434635,135,77,3,114,"Occasional",14,6,4,118,183,"Pre-Diabetes",NA
+531,56,"Female",52,153,22.2136785,128,80,3,105,"Chainsmoker",15,7,5,113,190,"Pre-Diabetes",NA
+532,61,"Male",54,160,21.09375,123,80,3,134,"Non-Smoker",3,9,4,110,170,"Pre-Diabetes",NA
+533,25,"Female",43,145,20.45184304,118,80,3,82,"Chainsmoker",16,4,5,100,149,"Normal/No Major Risk",NA
+534,35,"Female",73,138,38.33228313,137,87,3,98,"Occasional",0,5,6,175,216,"Obesity",NA
+535,18,"Female",51,134,28.40276231,114,70,1,84,"Non-Smoker",13,2,4,126,140,"Normal/No Major Risk",NA
+536,64,"Female",60,135,32.9218107,157,97,4,95,"Occasional",7,4,5,150,219,"Normal/No Major Risk",NA
+537,25,"Female",58,163,21.8299522,116,69,1,80,"Non-Smoker",16,2,6,103,123,"Pre-Diabetes",NA
+538,23,"Male",54,143,26.40715927,128,83,3,104,"Chainsmoker",0,8,9,140,173,"Normal/No Major Risk",NA
+539,19,"Female",60,145,28.53745541,125,79,2,84,"Chainsmoker",10,5,9,142,170,"Normal/No Major Risk",NA
+540,36,"Female",59,140,30.10204082,117,74,1,88,"Non-Smoker",10,6,7,146,162,"Normal/No Major Risk",NA
+541,42,"Male",66,144,31.8287037,128,85,3,85,"Non-Smoker",12,5,6,149,173,"Normal/No Major Risk",NA
+542,90,"Male",67,159,26.50211621,138,84,3,86,"Non-Smoker",13,1,4,116,196,"Pre-Diabetes",NA
+543,70,"Male",69,146,32.37005067,141,81,4,73,"Non-Smoker",14,3,5,145,195,"Normal/No Major Risk",NA
+544,79,"Female",61,130,36.09467456,135,83,3,102,"Non-Smoker",3,6,5,166,228,"Obesity",NA
+545,29,"Male",63,144,30.38194444,123,80,3,109,"Non-Smoker",3,9,9,158,164,"Normal/No Major Risk",NA
+546,81,"Male",68,175,22.20408163,144,86,4,101,"Occasional",10,4,4,105,200,"Pre-Diabetes",NA
+547,25,"Male",66,172,22.30935641,122,68,2,96,"Occasional",6,4,6,109,151,"Pre-Diabetes",NA
+548,71,"Female",69,136,37.30536332,140,83,4,96,"Non-Smoker",8,4,5,167,224,"Obesity",NA
+549,47,"Male",42,140,21.42857143,127,74,2,82,"Non-Smoker",15,4,5,104,142,"Pre-Diabetes",NA
+550,44,"Male",65,164,24.1671624,129,76,2,138,"Non-Smoker",0,10,5,127,170,"Insulin Resistance",NA
+551,50,"Male",54,152,23.37257618,134,87,3,119,"Chainsmoker",7,8,6,121,196,"Pre-Diabetes",NA
+552,50,"Male",74,160,28.90625,124,76,2,86,"Non-Smoker",5,5,7,140,173,"Normal/No Major Risk",NA
+553,80,"Male",67,142,33.22753422,151,91,4,102,"Occasional",14,4,4,149,238,"Normal/No Major Risk",NA
+554,64,"Male",57,158,22.83287935,132,73,3,115,"Non-Smoker",0,8,5,117,172,"Pre-Diabetes",NA
+555,35,"Male",74,151,32.4547169,132,84,3,152,"Chainsmoker",2,10,4,158,228,"Metabolic Syndrome",NA
+556,72,"Female",53,148,24.19649379,143,83,4,105,"Occasional",9,6,5,119,200,"Pre-Diabetes",NA
+557,73,"Male",61,168,21.61281179,128,79,2,148,"Non-Smoker",2,9,4,112,192,"Depression",NA
+558,85,"Male",62,145,29.48870392,147,83,4,73,"Occasional",13,3,5,134,220,"Normal/No Major Risk",NA
+559,69,"Male",51,157,20.69049454,124,80,3,91,"Non-Smoker",11,5,6,105,159,"Pre-Diabetes",NA
+560,64,"Male",68,174,22.46003435,134,84,3,86,"Occasional",11,1,4,100,181,"Normal/No Major Risk",NA
+561,32,"Female",51,150,22.66666667,129,77,2,96,"Chainsmoker",14,5,5,111,168,"Pre-Diabetes",NA
+562,57,"Female",73,137,38.89392083,129,83,3,110,"Non-Smoker",6,6,4,176,219,"Obesity",NA
+563,65,"Male",68,172,22.98539751,136,76,3,114,"Non-Smoker",0,5,4,110,173,"Pre-Diabetes",NA
+564,42,"Female",68,147,31.46836966,129,82,3,120,"Non-Smoker",3,8,5,152,187,"Insulin Resistance",NA
+565,79,"Male",66,148,30.13148283,150,95,4,135,"Chainsmoker",2,10,5,151,249,"Metabolic Syndrome",NA
+566,63,"Male",56,170,19.37716263,130,79,3,120,"Occasional",5,7,4,100,185,"Insulin Resistance",NA
+567,46,"Male",70,172,23.66143862,128,68,2,62,"Non-Smoker",15,3,7,115,141,"Pre-Diabetes",NA
+568,45,"Male",65,152,28.13365651,135,88,3,121,"Occasional",0,6,4,133,196,"Normal/No Major Risk",NA
+569,88,"Male",58,144,27.97067901,137,82,3,83,"Non-Smoker",15,4,6,132,201,"Normal/No Major Risk",NA
+570,69,"Male",58,166,21.04804761,132,91,4,113,"Chainsmoker",5,6,4,104,201,"Pre-Diabetes",NA
+571,80,"Male",68,163,25.59373706,145,83,4,143,"Occasional",3,9,4,128,230,"Insulin Resistance",NA
+572,49,"Female",64,158,25.63691716,142,91,4,71,"Chainsmoker",8,3,7,123,184,"Pre-Diabetes",NA
+573,30,"Male",81,163,30.48665738,120,77,2,122,"Non-Smoker",0,8,5,148,171,"Insulin Resistance",NA
+574,78,"Male",63,159,24.91990032,147,89,4,98,"Occasional",10,5,5,120,205,"Pre-Diabetes",NA
+575,38,"Female",67,143,32.76443836,121,73,2,133,"Non-Smoker",2,8,4,155,191,"Depression",NA
+576,57,"Female",49,143,23.96205193,122,70,2,94,"Non-Smoker",9,4,6,116,165,"Pre-Diabetes",NA
+577,89,"Male",56,147,25.91512796,138,87,3,87,"Occasional",5,4,5,122,218,"Pre-Diabetes",NA
+578,85,"Male",77,173,25.72755521,134,76,3,113,"Non-Smoker",1,6,5,125,203,"Pre-Diabetes",NA
+579,72,"Male",76,147,35.1705308,151,97,4,91,"Chainsmoker",14,5,5,161,246,"Obesity",NA
+580,31,"Female",59,130,34.9112426,138,86,3,95,"Chainsmoker",13,5,5,160,210,"Normal/No Major Risk",NA
+581,26,"Female",55,166,19.95935549,129,76,2,80,"Occasional",5,5,9,108,136,"Pre-Diabetes",NA
+582,75,"Female",60,161,23.14725512,124,75,2,63,"Non-Smoker",14,1,6,107,165,"Pre-Diabetes",NA
+583,22,"Female",63,142,31.24380083,120,80,3,91,"Non-Smoker",8,5,6,147,155,"Normal/No Major Risk",NA
+584,67,"Male",51,152,22.07409972,137,81,3,71,"Occasional",10,1,5,100,175,"Pre-Diabetes",NA
+585,28,"Male",54,149,24.32322868,118,82,3,76,"Chainsmoker",14,3,5,113,159,"Pre-Diabetes",NA
+586,29,"Male",53,146,24.86395196,117,70,1,125,"Occasional",2,9,5,127,174,"Insulin Resistance",NA
+587,77,"Male",54,172,18.25310979,129,85,3,112,"Chainsmoker",16,7,4,95,200,"Hyperthyroidism",NA
+588,90,"Female",69,162,26.29172382,148,85,4,115,"Occasional",1,8,6,133,228,"Pheochromocytoma",NA
+589,84,"Male",78,174,25.76298058,129,78,2,87,"Non-Smoker",7,3,5,119,192,"Pre-Diabetes",NA
+590,81,"Male",60,140,30.6122449,142,91,4,86,"Non-Smoker",13,4,6,142,203,"Normal/No Major Risk",NA
+591,24,"Male",62,166,22.4996371,122,76,2,86,"Occasional",9,6,9,120,146,"Pre-Diabetes",NA
+592,19,"Male",60,155,24.97398543,131,86,3,103,"Chainsmoker",2,5,6,122,165,"Pre-Diabetes",NA
+593,82,"Female",52,139,26.91372082,132,76,3,80,"Non-Smoker",11,4,6,128,191,"Normal/No Major Risk",NA
+594,63,"Female",51,147,23.60127725,132,90,4,106,"Chainsmoker",6,7,5,118,202,"Pre-Diabetes",NA
+595,80,"Male",55,161,21.21831719,137,92,4,98,"Chainsmoker",9,4,5,103,206,"Pre-Diabetes",NA
+596,77,"Female",68,162,25.91068435,144,93,4,124,"Occasional",8,8,4,128,221,"Insulin Resistance",NA
+597,82,"Male",60,155,24.97398543,141,85,4,107,"Occasional",9,7,6,126,213,"Normal/No Major Risk",NA
+598,52,"Male",63,160,24.609375,132,69,3,113,"Non-Smoker",4,6,5,120,166,"Pre-Diabetes",NA
+599,22,"Male",65,155,27.05515088,123,82,3,107,"Occasional",8,7,5,132,167,"Insulin Resistance",NA
+600,81,"Female",80,155,33.29864724,145,97,4,93,"Occasional",8,4,5,151,237,"Normal/No Major Risk",NA
+601,78,"Male",58,172,19.605192,131,88,3,113,"Chainsmoker",4,8,5,104,202,"Pre-Diabetes",NA
+602,31,"Female",64,154,26.98600101,123,77,2,88,"Occasional",13,1,4,118,170,"Pre-Diabetes",NA
+603,82,"Male",49,155,20.39542144,139,78,3,87,"Occasional",11,1,4,92,190,"Normal/No Major Risk",NA
+604,30,"Female",66,150,29.33333333,121,75,2,79,"Non-Smoker",11,2,6,133,149,"Normal/No Major Risk",NA
+605,74,"Female",60,167,21.51385851,136,84,3,99,"Chainsmoker",16,5,6,108,199,"Pre-Diabetes",NA
+606,87,"Male",55,149,24.77365884,133,76,3,94,"Non-Smoker",13,3,4,113,194,"Pre-Diabetes",NA
+607,41,"Male",72,163,27.09925101,144,88,4,117,"Chainsmoker",7,5,4,126,198,"Normal/No Major Risk",NA
+608,80,"Female",57,145,27.11058264,134,92,4,101,"Occasional",16,5,4,126,217,"Normal/No Major Risk",NA
+609,41,"Female",72,151,31.57756239,142,95,4,108,"Chainsmoker",5,7,5,150,210,"Cardiovascular Disease",NA
+610,87,"Female",51,159,20.17325264,124,78,2,86,"Non-Smoker",11,3,6,99,171,"Normal/No Major Risk",NA
+611,75,"Male",80,149,36.03441286,155,100,4,136,"Chainsmoker",3,9,4,170,268,"Cardiovascular Disease",NA
+612,64,"Male",59,151,25.87605807,147,88,4,114,"Chainsmoker",7,6,4,124,213,"Pre-Diabetes",NA
+613,37,"Male",55,171,18.80920625,114,73,1,108,"Occasional",8,6,5,97,150,"Normal/No Major Risk",NA
+614,64,"Female",69,165,25.34435262,129,84,3,107,"Non-Smoker",13,4,4,117,178,"Pre-Diabetes",NA
+615,41,"Female",43,150,19.11111111,119,75,1,90,"Non-Smoker",16,6,7,102,130,"Pre-Diabetes",NA
+616,70,"Male",79,168,27.99036281,138,89,3,133,"Occasional",2,8,4,136,224,"Depression",NA
+617,46,"Male",60,150,26.66666667,140,83,4,83,"Chainsmoker",13,1,4,117,189,"Pre-Diabetes",NA
+618,76,"Female",67,130,39.64497041,145,90,4,111,"Occasional",2,6,5,181,263,"Obesity",NA
+619,35,"Female",62,137,33.03319303,118,71,1,84,"Non-Smoker",16,5,7,156,169,"Normal/No Major Risk",NA
+620,38,"Female",61,162,23.24340802,122,74,2,108,"Chainsmoker",3,7,6,119,180,"Pre-Diabetes",NA
+621,59,"Male",67,173,22.38631428,139,82,3,86,"Occasional",15,3,6,108,175,"Pre-Diabetes",NA
+622,64,"Male",55,161,21.21831719,141,86,4,97,"Chainsmoker",6,3,4,99,192,"Normal/No Major Risk",NA
+623,25,"Male",58,165,21.30394858,114,77,1,64,"Occasional",11,1,5,97,135,"Normal/No Major Risk",NA
+624,65,"Female",74,161,28.54828132,149,96,4,99,"Chainsmoker",16,5,6,136,218,"Normal/No Major Risk",NA
+625,44,"Female",63,133,35.61535417,130,76,3,109,"Non-Smoker",8,8,5,168,198,"Obesity",NA
+626,71,"Female",59,169,20.65754,136,80,3,112,"Occasional",1,8,5,109,193,"Pre-Diabetes",NA
+627,38,"Male",69,161,26.61934339,133,85,3,106,"Chainsmoker",0,4,4,122,189,"Pre-Diabetes",NA
+628,48,"Female",61,160,23.828125,137,78,3,122,"Chainsmoker",10,7,4,117,196,"Pre-Diabetes",NA
+629,88,"Male",79,174,26.0932752,145,93,4,126,"Occasional",1,10,5,134,233,"Pheochromocytoma",NA
+630,68,"Female",76,150,33.77777778,139,98,4,124,"Occasional",0,10,5,165,239,"Metabolic Syndrome",NA
+631,85,"Female",58,169,20.30741221,132,84,3,124,"Occasional",5,8,4,105,207,"Pre-Diabetes",NA
+632,80,"Female",77,164,28.62879239,134,93,4,88,"Occasional",14,4,6,135,219,"Normal/No Major Risk",NA
+633,45,"Male",76,141,38.22745335,151,89,4,123,"Chainsmoker",1,6,4,173,242,"Obesity",NA
+634,55,"Male",66,150,29.33333333,140,80,4,112,"Occasional",5,8,5,143,208,"Insulin Resistance",NA
+635,79,"Female",72,161,27.77670615,137,93,4,68,"Occasional",10,2,5,125,204,"Normal/No Major Risk",NA
+636,70,"Male",59,171,20.17714852,132,77,3,90,"Non-Smoker",10,5,5,101,161,"Pre-Diabetes",NA
+637,45,"Female",59,153,25.20398137,144,79,4,88,"Occasional",10,1,4,111,175,"Pre-Diabetes",NA
+638,75,"Male",52,158,20.82999519,144,85,4,105,"Occasional",13,6,6,107,192,"Pre-Diabetes",NA
+639,21,"Female",64,169,22.40817899,112,71,1,66,"Non-Smoker",10,3,8,112,116,"Pre-Diabetes",NA
+640,80,"Female",63,167,22.58955144,139,86,3,97,"Chainsmoker",5,4,6,110,212,"Pre-Diabetes",NA
+641,25,"Female",63,170,21.79930796,129,71,2,131,"Occasional",9,7,4,109,163,"Pre-Diabetes",NA
+642,89,"Male",74,150,32.88888889,148,88,4,98,"Non-Smoker",8,6,5,154,223,"Normal/No Major Risk",NA
+643,21,"Male",62,165,22.77318641,126,72,2,126,"Occasional",2,10,5,121,157,"Pre-Diabetes",NA
+644,34,"Male",53,163,19.94805977,115,71,1,91,"Occasional",4,5,7,104,146,"Pre-Diabetes",NA
+645,44,"Female",58,153,24.77679525,128,80,3,61,"Occasional",13,2,7,117,162,"Pre-Diabetes",NA
+646,72,"Male",75,164,27.88518739,128,82,3,97,"Non-Smoker",12,7,6,138,192,"Normal/No Major Risk",NA
+647,63,"Male",57,151,24.99890356,135,76,3,92,"Non-Smoker",6,4,6,120,170,"Pre-Diabetes",NA
+648,49,"Female",64,155,26.63891779,134,77,3,85,"Non-Smoker",13,2,4,119,159,"Pre-Diabetes",NA
+649,40,"Male",60,175,19.59183673,123,73,2,66,"Non-Smoker",12,2,5,92,123,"Normal/No Major Risk",NA
+650,42,"Female",42,138,22.0541903,118,66,1,61,"Non-Smoker",16,1,6,102,131,"Pre-Diabetes",NA
+651,73,"Male",81,145,38.5255648,161,92,4,122,"Chainsmoker",1,8,5,180,271,"Metabolic Syndrome",NA
+652,59,"Male",51,174,16.84502576,116,66,1,92,"Non-Smoker",8,4,6,87,137,"Normal/No Major Risk",NA
+653,54,"Male",64,166,23.22543185,117,67,1,98,"Non-Smoker",14,6,5,115,161,"Pre-Diabetes",NA
+654,52,"Female",56,150,24.88888889,129,70,2,116,"Non-Smoker",4,6,4,120,169,"Pre-Diabetes",NA
+655,61,"Female",60,161,23.14725512,130,85,3,85,"Occasional",7,3,5,109,182,"Pre-Diabetes",NA
+656,56,"Male",61,140,31.12244898,137,93,4,92,"Occasional",16,4,5,142,208,"Normal/No Major Risk",NA
+657,88,"Male",61,148,27.84879474,137,83,3,102,"Non-Smoker",11,7,6,137,205,"Normal/No Major Risk",NA
+658,36,"Male",74,172,25.01352082,128,78,2,105,"Occasional",5,3,4,114,173,"Pre-Diabetes",NA
+659,85,"Female",67,170,23.183391,140,86,4,62,"Chainsmoker",15,1,5,105,202,"Pre-Diabetes",NA
+660,46,"Male",60,166,21.77384236,138,75,3,76,"Occasional",14,2,5,101,157,"Pre-Diabetes",NA
+661,58,"Male",53,150,23.55555556,136,82,3,118,"Chainsmoker",9,5,4,112,203,"Pre-Diabetes",NA
+662,36,"Female",62,141,31.18555405,128,76,2,95,"Non-Smoker",0,4,5,143,172,"Normal/No Major Risk",NA
+663,72,"Male",65,171,22.22906193,141,92,4,113,"Chainsmoker",9,6,4,109,209,"Pre-Diabetes",NA
+664,63,"Female",75,167,26.89232314,134,82,3,91,"Non-Smoker",2,4,5,126,179,"Normal/No Major Risk",NA
+665,22,"Female",54,162,20.57613169,119,68,1,102,"Occasional",4,8,8,114,141,"Pre-Diabetes",NA
+666,50,"Male",67,174,22.12973973,132,79,3,100,"Occasional",10,6,5,111,174,"Pre-Diabetes",NA
+667,42,"Male",81,173,27.06405159,143,87,4,116,"Occasional",0,10,7,142,189,"Pheochromocytoma",NA
+668,81,"Male",74,165,27.18089991,137,84,3,119,"Non-Smoker",2,6,4,129,207,"Normal/No Major Risk",NA
+669,65,"Male",75,165,27.54820937,143,84,4,96,"Occasional",2,4,5,128,201,"Normal/No Major Risk",NA
+670,81,"Female",49,141,24.64664755,132,88,3,115,"Chainsmoker",15,6,4,119,226,"Pre-Diabetes",NA
+671,26,"Female",57,164,21.19274242,120,77,2,74,"Occasional",15,3,5,101,138,"Pre-Diabetes",NA
+672,48,"Male",69,164,25.6543724,143,84,4,96,"Chainsmoker",14,7,7,131,189,"Normal/No Major Risk",NA
+673,33,"Female",52,147,24.06404739,112,65,1,102,"Non-Smoker",5,7,6,122,145,"Pre-Diabetes",NA
+674,55,"Female",55,147,25.45235781,130,78,3,88,"Occasional",14,4,6,122,183,"Pre-Diabetes",NA
+675,38,"Female",64,159,25.31545429,127,70,2,122,"Non-Smoker",8,8,5,127,162,"Insulin Resistance",NA
+676,25,"Female",74,165,27.18089991,121,72,2,107,"Non-Smoker",3,4,4,125,150,"Pre-Diabetes",NA
+677,53,"Male",76,168,26.92743764,123,71,2,100,"Non-Smoker",5,4,4,124,171,"Pre-Diabetes",NA
+678,75,"Female",51,142,25.29260067,146,93,4,82,"Chainsmoker",10,2,4,113,210,"Pre-Diabetes",NA
+679,71,"Male",77,174,25.43268596,143,86,4,133,"Occasional",0,9,5,130,216,"Pheochromocytoma",NA
+680,69,"Female",73,157,29.61580592,131,86,3,122,"Non-Smoker",4,9,6,148,207,"Normal/No Major Risk",NA
+681,66,"Male",79,149,35.5839827,141,89,4,135,"Non-Smoker",0,7,4,164,228,"Type 2 Diabetes",NA
+682,61,"Female",77,168,27.28174603,133,78,3,81,"Non-Smoker",16,1,4,119,174,"Pre-Diabetes",NA
+683,60,"Female",62,141,31.18555405,141,77,4,92,"Non-Smoker",11,6,5,147,188,"Normal/No Major Risk",NA
+684,54,"Female",54,159,21.35991456,132,83,3,98,"Occasional",6,6,6,109,175,"Pre-Diabetes",NA
+685,57,"Male",57,142,28.26820075,128,77,2,100,"Non-Smoker",6,4,4,129,179,"Normal/No Major Risk",NA
+686,61,"Female",73,149,32.88140174,158,92,4,74,"Occasional",13,1,6,146,212,"Normal/No Major Risk",NA
+687,22,"Female",54,151,23.68317179,117,65,1,56,"Non-Smoker",13,2,9,117,114,"Pre-Diabetes",NA
+688,18,"Female",47,141,23.64066194,121,72,2,84,"Chainsmoker",13,4,5,113,151,"Pre-Diabetes",NA
+689,72,"Male",63,157,25.5588462,133,85,3,88,"Non-Smoker",6,3,6,120,180,"Pre-Diabetes",NA
+690,57,"Female",50,143,24.4510734,140,78,4,95,"Chainsmoker",6,6,6,122,193,"Pre-Diabetes",NA
+691,67,"Female",49,141,24.64664755,137,84,3,91,"Chainsmoker",11,5,6,121,202,"Pre-Diabetes",NA
+692,89,"Female",60,163,22.58270917,144,80,4,96,"Occasional",15,6,6,114,207,"Pre-Diabetes",NA
+693,83,"Female",75,151,32.89329415,145,97,4,113,"Occasional",6,7,6,158,244,"Normal/No Major Risk",NA
+694,22,"Female",63,169,22.05805119,116,68,1,94,"Occasional",5,6,9,118,146,"Pre-Diabetes",NA
+695,51,"Female",59,148,26.9357195,144,92,4,72,"Chainsmoker",15,3,6,126,189,"Normal/No Major Risk",NA
+696,22,"Female",52,145,24.73246136,131,76,3,70,"Chainsmoker",14,4,8,123,154,"Pre-Diabetes",NA
+697,31,"Female",49,138,25.72988868,125,67,2,88,"Non-Smoker",12,6,7,129,141,"Normal/No Major Risk",NA
+698,47,"Male",47,149,21.17021756,130,77,3,93,"Chainsmoker",9,5,6,107,174,"Pre-Diabetes",NA
+699,74,"Male",70,148,31.95763331,144,82,4,79,"Non-Smoker",13,2,5,142,200,"Normal/No Major Risk",NA
+700,42,"Female",75,148,34.2403214,143,85,4,103,"Occasional",2,4,6,157,207,"Normal/No Major Risk",NA
+701,47,"Female",72,144,34.72222222,146,85,4,110,"Occasional",7,4,4,155,217,"Normal/No Major Risk",NA
+702,32,"Female",64,132,36.73094582,132,91,4,129,"Chainsmoker",5,8,4,171,227,"Cardiovascular Disease",NA
+703,48,"Male",67,147,31.00559952,127,84,3,107,"Non-Smoker",7,7,5,148,186,"Insulin Resistance",NA
+704,75,"Female",55,156,22.60026298,131,78,3,117,"Occasional",9,7,4,112,202,"Pre-Diabetes",NA
+705,89,"Male",58,174,19.15708812,134,78,3,96,"Non-Smoker",8,3,4,91,178,"Normal/No Major Risk",NA
+706,64,"Male",61,157,24.74745426,137,82,3,91,"Chainsmoker",10,4,6,119,203,"Pre-Diabetes",NA
+707,81,"Male",58,169,20.30741221,140,83,4,105,"Occasional",5,5,4,99,198,"Normal/No Major Risk",NA
+708,40,"Male",69,157,27.99302203,134,74,3,106,"Non-Smoker",7,8,7,142,166,"Normal/No Major Risk",NA
+709,27,"Male",60,158,24.03460984,125,80,3,92,"Chainsmoker",8,6,7,122,164,"Pre-Diabetes",NA
+710,41,"Female",61,149,27.47623981,144,86,4,76,"Occasional",10,3,6,128,171,"Normal/No Major Risk",NA
+711,85,"Male",81,157,32.86137369,147,97,4,146,"Occasional",2,9,4,157,262,"Metabolic Syndrome",NA
+712,61,"Male",56,162,21.33821064,138,85,3,91,"Chainsmoker",14,6,5,107,185,"Pre-Diabetes",NA
+713,26,"Female",70,151,30.70040788,126,86,3,93,"Chainsmoker",6,6,7,149,187,"Normal/No Major Risk",NA
+714,87,"Male",78,150,34.66666667,161,92,4,63,"Chainsmoker",10,1,5,151,244,"Normal/No Major Risk",NA
+715,56,"Female",56,151,24.5603263,139,83,3,72,"Occasional",13,3,6,116,175,"Pre-Diabetes",NA
+716,81,"Male",66,149,29.72839061,139,85,3,83,"Occasional",9,3,6,137,219,"Normal/No Major Risk",NA
+717,84,"Female",55,165,20.2020202,127,77,2,93,"Non-Smoker",15,3,4,95,175,"Normal/No Major Risk",NA
+718,51,"Male",54,167,19.36247266,126,82,3,79,"Occasional",12,4,5,95,154,"Normal/No Major Risk",NA
+719,74,"Female",48,153,20.504934,144,88,4,81,"Chainsmoker",12,3,6,100,190,"Pre-Diabetes",NA
+720,34,"Female",57,168,20.19557823,120,64,2,72,"Non-Smoker",8,3,7,101,119,"Pre-Diabetes",NA
+721,73,"Male",73,144,35.20447531,136,85,3,130,"Non-Smoker",0,6,4,161,231,"Obesity",NA
+722,57,"Male",55,168,19.48696145,121,71,2,95,"Non-Smoker",5,6,5,100,150,"Normal/No Major Risk",NA
+723,35,"Male",51,141,25.65263317,125,68,2,74,"Non-Smoker",12,5,7,127,139,"Normal/No Major Risk",NA
+724,85,"Male",75,168,26.57312925,147,88,4,84,"Occasional",8,4,5,124,213,"Pre-Diabetes",NA
+725,40,"Female",67,143,32.76443836,140,91,4,100,"Chainsmoker",11,7,6,157,210,"Normal/No Major Risk",NA
+726,71,"Female",84,156,34.51676529,135,89,3,132,"Non-Smoker",0,7,4,160,229,"Type 2 Diabetes",NA
+727,79,"Female",54,143,26.40715927,148,93,4,148,"Chainsmoker",3,9,4,132,244,"Insulin Resistance",NA
+728,49,"Female",64,170,22.14532872,121,66,2,95,"Non-Smoker",0,4,5,107,150,"Pre-Diabetes",NA
+729,75,"Male",74,150,32.88888889,145,82,4,101,"Non-Smoker",6,4,4,148,211,"Normal/No Major Risk",NA
+730,36,"Male",70,148,31.95763331,129,77,2,111,"Non-Smoker",4,6,6,152,179,"Normal/No Major Risk",NA
+731,85,"Male",50,163,18.81892431,130,84,3,111,"Occasional",10,7,4,97,197,"Insulin Resistance",NA
+732,18,"Male",68,154,28.67262608,131,77,3,100,"Chainsmoker",9,7,8,145,178,"Normal/No Major Risk",NA
+733,28,"Female",53,170,18.33910035,108,69,1,72,"Occasional",12,3,6,91,126,"Normal/No Major Risk",NA
+734,30,"Female",60,152,25.96952909,134,80,3,93,"Occasional",1,6,7,130,165,"Normal/No Major Risk",NA
+735,49,"Male",53,153,22.64086462,124,74,2,76,"Occasional",5,4,7,113,164,"Pre-Diabetes",NA
+736,75,"Female",59,149,26.57537949,149,83,4,137,"Occasional",8,8,4,130,223,"Insulin Resistance",NA
+737,70,"Male",57,143,27.87422368,144,90,4,100,"Occasional",5,4,4,127,209,"Normal/No Major Risk",NA
+738,31,"Male",69,157,27.99302203,121,83,3,82,"Chainsmoker",13,2,NA,116,178,"Pre-Diabetes",NA
+739,50,"Female",56,166,20.32225287,139,78,3,119,"Occasional",9,8,5,107,172,"Pre-Diabetes",NA
+740,39,"Male",55,152,23.80540166,127,76,2,110,"Chainsmoker",13,5,4,113,183,"Pre-Diabetes",NA
+741,51,"Female",51,148,23.28341855,131,85,3,94,"Chainsmoker",8,3,4,107,186,"Pre-Diabetes",NA
+742,21,"Female",68,169,23.80869017,119,73,1,51,"Chainsmoker",11,1,9,115,145,"Pre-Diabetes",NA
+743,48,"Male",60,152,25.96952909,134,75,3,104,"Non-Smoker",14,4,4,120,166,"Pre-Diabetes",NA
+744,28,"Male",50,156,20.54569362,113,63,1,80,"Non-Smoker",13,6,8,110,118,"Pre-Diabetes",NA
+745,30,"Male",65,152,28.13365651,113,73,1,108,"Non-Smoker",14,7,6,139,157,"Normal/No Major Risk",NA
+746,25,"Female",62,156,25.47666009,133,81,3,74,"Occasional",12,2,6,118,149,"Pre-Diabetes",NA
+747,47,"Male",59,169,20.65754,130,87,3,86,"Chainsmoker",6,4,6,103,167,"Pre-Diabetes",NA
+748,79,"Female",59,166,21.41094498,128,77,2,114,"Non-Smoker",12,5,4,104,184,"Pre-Diabetes",NA
+749,41,"Male",73,167,26.17519452,124,78,2,86,"Non-Smoker",10,4,5,123,155,"Pre-Diabetes",NA
+750,40,"Male",57,142,28.26820075,144,83,4,62,"Occasional",16,2,7,131,170,"Normal/No Major Risk",NA
+751,25,"Male",61,154,25.72103221,114,68,1,79,"Non-Smoker",13,2,6,119,132,"Pre-Diabetes",NA
+752,22,"Male",49,149,22.07107788,115,74,1,87,"Occasional",8,4,6,108,141,"Pre-Diabetes",NA
+753,78,"Female",66,133,37.31132342,159,97,4,128,"Chainsmoker",4,6,4,169,274,"Obesity",NA
+754,66,"Female",77,158,30.84441596,143,84,4,110,"Non-Smoker",15,5,4,141,202,"Normal/No Major Risk",NA
+755,48,"Male",54,175,17.63265306,120,74,2,113,"Chainsmoker",5,8,5,97,168,"Insulin Resistance",NA
+756,64,"Female",61,170,21.10726644,134,72,3,83,"Non-Smoker",14,3,5,100,153,"Pre-Diabetes",NA
+757,78,"Male",61,173,20.38156971,130,82,3,134,"Occasional",3,7,4,104,205,"Pre-Diabetes",NA
+758,54,"Male",54,141,27.16161159,137,77,3,107,"Non-Smoker",11,5,4,127,177,"Normal/No Major Risk",NA
+759,77,"Female",71,169,24.85907356,132,87,3,81,"Chainsmoker",16,3,5,115,207,"Pre-Diabetes",NA
+760,34,"Female",59,136,31.89878893,118,76,1,131,"Non-Smoker",0,9,6,158,185,"Normal/No Major Risk",NA
+761,71,"Female",72,133,40.70326191,160,93,4,126,"Chainsmoker",0,10,5,193,279,"Metabolic Syndrome",NA
+762,42,"Male",56,146,26.27134547,128,79,2,96,"Non-Smoker",2,6,7,131,157,"Normal/No Major Risk",NA
+763,72,"Male",79,173,26.3958034,129,77,2,115,"Non-Smoker",10,7,4,128,194,"Insulin Resistance",NA
+764,37,"Female",55,159,21.75546853,117,74,1,86,"Occasional",10,3,6,105,154,"Pre-Diabetes",NA
+765,46,"Male",61,166,22.13673973,135,83,3,88,"Chainsmoker",7,4,5,107,176,"Pre-Diabetes",NA
+766,28,"Male",57,152,24.67105263,116,68,1,103,"Non-Smoker",0,6,6,123,141,"Pre-Diabetes",NA
+767,52,"Male",61,150,27.11111111,134,75,3,100,"Non-Smoker",7,6,5,130,173,"Normal/No Major Risk",NA
+768,62,"Female",60,143,29.34128808,133,77,3,124,"Non-Smoker",0,8,6,145,199,"Normal/No Major Risk",NA
+769,44,"Female",44,130,26.03550296,131,73,3,77,"Non-Smoker",12,3,6,122,153,"Pre-Diabetes",NA
+770,86,"Female",75,154,31.62421994,150,95,4,115,"Occasional",0,8,5,152,243,"Metabolic Syndrome",NA
+771,85,"Female",74,157,30.02150189,139,93,4,94,"Occasional",10,4,4,136,228,"Normal/No Major Risk",NA
+772,34,"Female",59,152,25.5367036,127,76,2,138,"Non-Smoker",3,10,6,134,167,"Normal/No Major Risk",NA
+773,53,"Male",61,168,21.61281179,118,73,1,95,"Non-Smoker",10,6,5,108,150,"Pre-Diabetes",NA
+774,61,"Male",71,145,33.76932224,154,100,4,113,"Chainsmoker",3,4,4,151,239,"Normal/No Major Risk",NA
+775,56,"Female",67,147,31.00559952,137,96,4,109,"Chainsmoker",14,7,5,148,221,"Cardiovascular Disease",NA
+776,34,"Female",67,153,28.62147037,128,82,3,89,"Chainsmoker",15,4,6,134,187,"Normal/No Major Risk",NA
+777,83,"Female",72,137,38.36112739,154,97,4,70,"Occasional",12,1,5,165,247,"Obesity",NA
+778,26,"Female",54,149,24.32322868,117,68,1,98,"Occasional",8,5,6,119,157,"Pre-Diabetes",NA
+779,62,"Female",75,152,32.46191136,151,81,4,82,"Non-Smoker",6,3,5,146,191,"Normal/No Major Risk",NA
+780,89,"Female",80,146,37.53049353,148,86,4,134,"Non-Smoker",4,10,5,180,253,"Cushing's Syndrome",NA
+781,49,"Female",65,162,24.76756592,130,74,3,97,"Occasional",1,7,7,127,179,"Normal/No Major Risk",NA
+782,25,"Female",51,152,22.07409972,125,79,2,59,"Chainsmoker",12,2,7,106,144,"Pre-Diabetes",NA
+783,34,"Male",53,153,22.64086462,118,67,1,58,"Non-Smoker",13,1,7,107,124,"Pre-Diabetes",NA
+784,30,"Female",68,165,24.97704316,117,68,1,53,"Non-Smoker",12,1,7,116,125,"Pre-Diabetes",NA
+785,35,"Female",62,153,26.48553975,127,70,2,91,"Non-Smoker",9,4,6,126,149,"Normal/No Major Risk",NA
+786,36,"Female",59,156,24.24391847,123,82,3,93,"Chainsmoker",3,5,7,121,175,"Pre-Diabetes",NA
+787,26,"Male",49,156,20.13477975,127,81,3,52,"Chainsmoker",12,1,8,99,134,"Normal/No Major Risk",NA
+788,20,"Female",60,162,22.86236854,107,67,1,112,"Non-Smoker",1,9,7,123,134,"Pre-Diabetes",NA
+789,68,"Female",68,156,27.94214333,140,90,4,140,"Occasional",2,8,4,136,226,"Depression",NA
+790,39,"Female",69,147,31.9311398,129,88,3,138,"Chainsmoker",3,9,4,154,221,"PCOS",NA
+791,55,"Female",49,163,18.44254582,122,73,2,107,"Chainsmoker",9,6,6,98,177,"Normal/No Major Risk",NA
+792,23,"Female",61,166,22.13673973,113,71,1,87,"Non-Smoker",5,4,5,107,121,"Pre-Diabetes",NA
+793,73,"Female",60,166,21.77384236,140,92,4,79,"Chainsmoker",13,2,6,103,196,"Pre-Diabetes",NA
+794,57,"Male",59,168,20.90419501,130,68,3,152,"Non-Smoker",0,10,4,112,174,"Depression",NA
+795,50,"Male",76,144,36.65123457,135,89,3,121,"Occasional",4,10,7,181,232,"Obesity",NA
+796,33,"Female",59,140,30.10204082,130,79,3,110,"Occasional",6,5,4,138,190,"Normal/No Major Risk",NA
+797,72,"Female",52,166,18.87066338,143,90,4,108,"Chainsmoker",16,6,4,95,194,"Normal/No Major Risk",NA
+798,84,"Female",64,134,35.64268211,145,87,4,106,"Non-Smoker",3,6,6,167,233,"Obesity",NA
+799,79,"Male",72,163,27.09925101,134,77,3,120,"Non-Smoker",10,6,4,128,202,"Normal/No Major Risk",NA
+800,18,"Female",64,146,30.02439482,141,83,4,91,"Chainsmoker",8,5,6,142,180,"Normal/No Major Risk",NA
+801,36,"Male",62,144,29.89969136,123,67,2,98,"Non-Smoker",9,4,4,136,168,"Normal/No Major Risk",NA
+802,25,"Female",71,156,29.17488494,120,66,2,131,"Non-Smoker",5,7,4,139,165,"Insulin Resistance",NA
+803,59,"Male",62,143,30.31933102,149,97,4,91,"Chainsmoker",8,5,5,141,218,"Normal/No Major Risk",NA
+804,72,"Male",61,164,22.67995241,135,90,4,62,"Chainsmoker",14,1,6,105,187,"Pre-Diabetes",NA
+805,21,"Male",61,141,30.68256124,139,89,3,75,"Chainsmoker",13,5,7,147,175,"Normal/No Major Risk",NA
+806,71,"Male",71,166,25.76571346,136,89,3,112,"Chainsmoker",3,5,4,121,218,"Pre-Diabetes",NA
+807,73,"Male",64,153,27.339912,141,85,4,86,"Non-Smoker",16,1,4,119,188,"Pre-Diabetes",NA
+808,81,"Female",75,143,36.6766101,134,81,3,110,"Non-Smoker",11,5,4,165,234,"Obesity",NA
+809,51,"Female",70,156,28.76397107,129,78,2,112,"Non-Smoker",8,5,4,133,181,"Normal/No Major Risk",NA
+810,62,"Female",67,151,29.38467611,128,81,3,95,"Non-Smoker",13,5,5,138,186,"Normal/No Major Risk",NA
+811,82,"Male",61,174,20.14797199,139,85,3,123,"Chainsmoker",2,8,5,107,215,"Pre-Diabetes",NA
+812,37,"Female",50,165,18.36547291,111,67,1,56,"Occasional",16,2,7,91,131,"Normal/No Major Risk",NA
+813,56,"Female",69,133,39.00729267,138,95,4,114,"Chainsmoker",10,5,4,174,251,"Obesity",NA
+814,57,"Female",59,130,34.9112426,127,81,3,109,"Non-Smoker",3,5,6,162,208,"Normal/No Major Risk",NA
+815,45,"Male",55,174,18.16620425,120,81,3,95,"Chainsmoker",9,3,4,87,160,"Normal/No Major Risk",NA
+816,56,"Male",46,147,21.28742654,129,72,2,83,"Non-Smoker",12,3,6,103,148,"Pre-Diabetes",NA
+817,89,"Female",61,158,24.43518667,145,91,4,152,"Chainsmoker",1,10,4,126,244,"Depression",NA
+818,67,"Male",57,162,21.71925011,137,85,3,140,"Chainsmoker",3,9,4,113,214,"Pre-Diabetes",NA
+819,40,"Male",56,156,23.01117686,139,83,3,79,"Occasional",13,3,5,108,160,"Pre-Diabetes",NA
+820,86,"Female",83,168,29.40759637,130,84,3,97,"Non-Smoker",1,5,6,140,207,"Normal/No Major Risk",NA
+821,38,"Male",79,153,33.74770387,127,86,3,116,"Occasional",0,5,4,153,207,"Normal/No Major Risk",NA
+822,32,"Male",73,155,30.38501561,131,81,3,122,"Non-Smoker",2,10,7,156,173,"Normal/No Major Risk",NA
+823,84,"Male",78,173,26.06167931,137,83,3,110,"Occasional",0,7,6,130,221,"Normal/No Major Risk",NA
+824,41,"Female",55,160,21.484375,130,70,3,75,"Non-Smoker",12,1,4,96,131,"Normal/No Major Risk",NA
+825,23,"Female",71,153,30.33021487,127,82,3,112,"Occasional",1,6,6,145,181,"Normal/No Major Risk",NA
+826,32,"Female",60,157,24.34175829,126,69,2,93,"Occasional",6,6,7,123,163,"Pre-Diabetes",NA
+827,61,"Female",66,157,26.77593411,145,88,4,116,"Chainsmoker",7,8,6,135,217,"Normal/No Major Risk",NA
+828,58,"Male",68,156,27.94214333,133,88,3,149,"Chainsmoker",1,10,4,140,231,"Depression",NA
+829,35,"Female",74,155,30.8012487,124,83,3,147,"Occasional",0,10,4,151,209,"Type 2 Diabetes",NA
+830,35,"Male",63,173,21.0498179,117,81,3,93,"Chainsmoker",6,7,7,112,161,"Pre-Diabetes",NA
+831,19,"Female",63,146,29.55526365,130,81,3,137,"Chainsmoker",2,9,4,144,196,"Depression",NA
+832,67,"Female",64,141,32.19153966,134,83,3,97,"Non-Smoker",16,6,6,153,201,"Normal/No Major Risk",NA
+834,31,"Male",50,146,23.45655845,127,74,2,56,"Occasional",10,1,7,110,143,"Pre-Diabetes",NA
+835,89,"Male",57,147,26.3778981,138,85,3,121,"Occasional",8,8,5,132,229,"Insulin Resistance",NA
+836,49,"Female",64,130,37.86982249,141,91,4,86,"Chainsmoker",14,5,5,171,229,"Obesity",NA
+837,31,"Male",69,146,32.37005067,128,85,3,90,"Chainsmoker",12,6,6,153,199,"Normal/No Major Risk",NA
+838,62,"Male",52,154,21.92612582,123,81,3,98,"Non-Smoker",10,6,6,112,161,"Pre-Diabetes",NA
+839,82,"Female",53,154,22.34778209,130,81,3,125,"Occasional",6,8,4,113,211,"Pre-Diabetes",NA
+840,31,"Male",59,158,23.63403301,120,75,2,124,"Occasional",0,10,5,125,168,"Pre-Diabetes",NA
+841,90,"Male",74,144,35.6867284,156,89,4,108,"Occasional",5,6,5,165,259,"Obesity",NA
+842,25,"Male",50,163,18.81892431,115,69,1,84,"Non-Smoker",12,5,7,99,111,"Normal/No Major Risk",NA
+843,44,"Male",64,145,30.43995244,135,93,4,91,"Occasional",16,6,5,144,193,"Normal/No Major Risk",NA
+844,77,"Male",67,167,24.02380867,133,85,3,103,"Occasional",13,7,5,120,207,"Pre-Diabetes",NA
+845,62,"Female",80,166,29.03178981,146,93,4,67,"Occasional",10,2,6,132,193,"Normal/No Major Risk",NA
+846,38,"Female",63,153,26.91272587,134,86,3,109,"Chainsmoker",7,8,6,136,190,"Normal/No Major Risk",NA
+847,29,"Female",65,139,33.64215103,135,85,3,99,"Occasional",5,8,9,169,193,"Normal/No Major Risk",NA
+848,78,"Male",53,171,18.12523512,122,73,2,90,"Occasional",14,4,6,93,179,"Normal/No Major Risk",NA
+849,48,"Female",47,137,25.04129149,143,79,4,84,"Occasional",14,2,4,112,175,"Pre-Diabetes",NA
+850,49,"Male",59,161,22.76146754,126,71,2,79,"Non-Smoker",14,2,5,105,143,"Pre-Diabetes",NA
+851,50,"Male",64,142,31.73973418,136,88,3,81,"Occasional",10,6,7,153,196,"Normal/No Major Risk",NA
+852,88,"Female",53,133,29.96212335,158,94,4,121,"Occasional",5,8,5,146,241,"Insulin Resistance",NA
+853,74,"Male",69,144,33.27546296,150,97,4,93,"Occasional",9,4,5,151,228,"Normal/No Major Risk",NA
+854,64,"Male",76,153,32.4661455,142,95,4,147,"Occasional",1,9,4,156,240,"Metabolic Syndrome",NA
+855,65,"Female",53,170,18.33910035,127,76,2,91,"Non-Smoker",9,4,5,91,147,"Normal/No Major Risk",NA
+856,63,"Male",57,159,22.54657648,126,80,3,109,"Non-Smoker",11,7,5,114,169,"Pre-Diabetes",NA
+857,79,"Female",52,141,26.15562597,146,88,4,107,"Occasional",11,7,6,131,215,"Normal/No Major Risk",NA
+858,56,"Male",66,164,24.5389649,134,81,3,102,"Chainsmoker",6,6,5,120,196,"Pre-Diabetes",NA
+859,41,"Female",58,163,21.8299522,127,75,2,97,"Non-Smoker",9,4,5,105,142,"Pre-Diabetes",NA
+860,69,"Male",74,147,34.24499051,149,93,4,99,"Occasional",0,4,5,155,231,"Normal/No Major Risk",NA
+861,60,"Female",59,166,21.41094498,126,87,3,96,"Chainsmoker",5,6,6,110,187,"Pre-Diabetes",NA
+862,58,"Male",73,165,26.81359045,142,87,4,101,"Chainsmoker",9,5,6,129,207,"Normal/No Major Risk",NA
+863,43,"Male",60,163,22.58270917,133,83,3,101,"Occasional",8,7,6,116,169,"Pre-Diabetes",NA
+864,31,"Female",73,135,40.05486968,128,79,2,114,"Non-Smoker",4,10,7,194,206,"Obesity",NA
+865,62,"Male",67,174,22.12973973,139,84,3,97,"Occasional",2,5,6,111,183,"Pre-Diabetes",NA
+866,85,"Female",72,144,34.72222222,152,92,4,107,"Chainsmoker",6,5,4,157,262,"Normal/No Major Risk",NA
+867,31,"Female",71,148,32.41417093,118,75,1,136,"Non-Smoker",0,7,4,152,187,"Insulin Resistance",NA
+868,33,"Female",51,159,20.17325264,123,77,2,123,"Occasional",7,8,4,105,162,"Pre-Diabetes",NA
+869,66,"Male",56,163,21.07719523,144,85,4,140,"Occasional",0,8,4,108,200,"Depression",NA
+870,88,"Male",57,169,19.95728441,135,79,3,123,"Occasional",9,6,4,100,209,"Normal/No Major Risk",NA
+871,52,"Male",51,167,18.28677973,118,61,1,85,"Non-Smoker",10,4,6,93,136,"Normal/No Major Risk",NA
+872,90,"Male",66,159,26.10656224,142,88,4,112,"Chainsmoker",10,6,NA,116,238,"Pre-Diabetes",NA
+873,37,"Male",74,147,34.24499051,117,80,3,95,"Non-Smoker",0,4,6,157,181,"Normal/No Major Risk",NA
+874,82,"Male",73,142,36.2031343,152,93,4,83,"Chainsmoker",13,4,6,165,256,"Obesity",NA
+875,76,"Male",75,142,37.19500099,148,101,4,70,"Chainsmoker",14,1,6,163,249,"Obesity",NA
+876,90,"Male",55,141,27.6646044,148,89,4,110,"Chainsmoker",15,6,4,131,242,"Normal/No Major Risk",NA
+877,82,"Male",56,170,19.37716263,143,85,4,79,"Occasional",11,3,5,94,181,"Normal/No Major Risk",NA
+878,35,"Male",57,162,21.71925011,119,71,1,92,"Occasional",6,7,7,115,156,"Pre-Diabetes",NA
+879,81,"Male",80,162,30.48315806,133,89,3,119,"Non-Smoker",4,9,5,150,218,"Insulin Resistance",NA
+880,29,"Male",55,175,17.95918367,105,63,1,75,"Non-Smoker",8,4,9,98,107,"Normal/No Major Risk",NA
+881,31,"Female",78,160,30.46875,123,72,2,150,"Non-Smoker",2,10,4,150,183,"Depression",NA
+882,87,"Male",46,141,23.13766913,141,84,4,87,"Chainsmoker",14,3,4,107,216,"Pre-Diabetes",NA
+883,23,"Male",76,169,26.60971255,131,77,3,128,"Chainsmoker",1,8,4,130,186,"Depression",NA
+884,39,"Female",68,169,23.80869017,122,63,2,77,"Non-Smoker",16,3,5,111,137,"Pre-Diabetes",NA
+885,31,"Female",66,168,23.38435374,120,76,2,71,"Chainsmoker",15,1,6,108,157,"Pre-Diabetes",NA
+886,30,"Male",48,140,24.48979592,108,66,1,112,"Non-Smoker",16,5,4,116,150,"Pre-Diabetes",NA
+887,45,"Male",50,160,19.53125,129,69,2,85,"Non-Smoker",16,5,6,100,133,"Pre-Diabetes",NA
+888,51,"Female",55,132,31.56565657,138,89,3,121,"Occasional",1,9,5,154,216,"Metabolic Syndrome",NA
+889,63,"Female",56,165,20.56932966,132,79,3,115,"Occasional",6,8,5,108,187,"Pre-Diabetes",NA
+890,86,"Male",60,148,27.39225712,134,83,3,98,"Non-Smoker",10,5,6,132,202,"Normal/No Major Risk",NA
+891,23,"Male",60,146,28.14787014,122,81,3,96,"Chainsmoker",3,7,8,143,180,"Normal/No Major Risk",NA
+892,39,"Male",78,160,30.46875,127,92,4,95,"Chainsmoker",1,5,6,144,200,"Normal/No Major Risk",NA
+893,79,"Female",69,168,24.44727891,138,83,3,76,"Chainsmoker",13,2,6,114,206,"Pre-Diabetes",NA
+894,38,"Female",62,155,25.80645161,123,75,2,103,"Non-Smoker",2,4,4,119,155,"Pre-Diabetes",NA
+895,89,"Female",54,138,28.35538752,131,76,3,124,"Non-Smoker",2,6,4,133,217,"Normal/No Major Risk",NA
+896,63,"Female",67,138,35.18168452,147,95,4,123,"Chainsmoker",1,8,6,169,251,"Pheochromocytoma",NA
+897,39,"Female",68,140,34.69387755,137,83,3,98,"Chainsmoker",10,3,4,153,218,"Normal/No Major Risk",NA
+898,22,"Male",56,150,24.88888889,123,74,2,111,"Chainsmoker",4,6,6,124,171,"Pre-Diabetes",NA
+899,64,"Female",56,150,24.88888889,140,90,4,104,"Chainsmoker",4,5,6,122,206,"Pre-Diabetes",NA
+900,76,"Male",68,159,26.89767019,148,87,4,109,"Chainsmoker",9,8,5,134,225,"Insulin Resistance",NA
+901,84,"Female",74,158,29.64268547,140,90,4,100,"Chainsmoker",7,5,6,141,240,"Normal/No Major Risk",NA
+902,48,"Female",51,130,30.17751479,142,91,4,69,"Chainsmoker",14,3,7,141,197,"Normal/No Major Risk",NA
+903,56,"Male",70,156,28.76397107,142,86,4,62,"Occasional",11,1,5,127,187,"Normal/No Major Risk",NA
+904,20,"Male",56,153,23.922423,115,69,1,141,"Non-Smoker",4,9,4,122,148,"Pre-Diabetes",NA
+905,33,"Male",63,169,22.05805119,110,71,1,114,"Non-Smoker",1,8,5,114,144,"Pre-Diabetes",NA
+906,26,"Male",55,161,21.21831719,110,71,1,126,"Non-Smoker",12,7,4,107,140,"Pre-Diabetes",NA
+907,66,"Male",52,165,19.10009183,137,78,3,121,"Non-Smoker",8,7,4,98,167,"Insulin Resistance",NA
+908,70,"Male",70,166,25.40281608,145,92,4,108,"Occasional",9,6,6,126,204,"Normal/No Major Risk",NA
+909,60,"Male",67,158,26.83864765,130,88,3,102,"Occasional",0,5,6,129,201,"Normal/No Major Risk",NA
+910,61,"Female",78,142,38.68280103,136,88,3,99,"Non-Smoker",6,5,6,177,221,"Obesity",NA
+911,60,"Male",63,174,20.80856124,135,77,3,96,"Chainsmoker",8,3,4,97,187,"Normal/No Major Risk",NA
+912,54,"Male",58,158,23.23345618,125,75,2,116,"Non-Smoker",13,7,4,115,165,"Pre-Diabetes",NA
+913,41,"Male",64,159,25.31545429,137,87,3,114,"Occasional",9,8,5,127,181,"Insulin Resistance",NA
+914,29,"Male",51,144,24.59490741,122,70,2,88,"Occasional",12,5,6,120,155,"Pre-Diabetes",NA
+915,66,"Male",72,154,30.35925114,147,101,4,114,"Chainsmoker",1,6,6,145,229,"Normal/No Major Risk",NA
+916,90,"Female",62,156,25.47666009,142,84,4,121,"Occasional",14,7,4,124,227,"Pre-Diabetes",NA
+917,72,"Female",61,166,22.13673973,142,87,4,108,"Chainsmoker",1,4,4,105,205,"Pre-Diabetes",NA
+918,85,"Male",55,145,26.15933413,138,83,3,79,"Non-Smoker",16,3,6,123,191,"Pre-Diabetes",NA
+919,86,"Female",64,154,26.98600101,139,89,3,109,"Occasional",1,5,6,130,224,"Normal/No Major Risk",NA
+920,83,"Female",74,135,40.60356653,149,85,4,124,"Non-Smoker",6,7,4,184,256,"PCOS",NA
+921,27,"Female",50,156,20.54569362,121,77,2,103,"Chainsmoker",7,6,5,104,155,"Pre-Diabetes",NA
+923,51,"Female",48,130,28.40236686,135,87,3,124,"Occasional",6,8,4,138,207,"Insulin Resistance",NA
+924,86,"Female",82,147,37.94715165,160,101,4,123,"Chainsmoker",4,9,6,182,277,"Obesity",NA
+925,51,"Male",75,173,25.05930703,135,85,3,101,"Chainsmoker",3,5,5,120,196,"Pre-Diabetes",NA
+926,18,"Male",54,165,19.83471074,111,66,1,78,"Non-Smoker",10,4,6,99,107,"Normal/No Major Risk",NA
+927,58,"Male",63,150,28,127,79,2,90,"Non-Smoker",10,6,5,134,178,"Normal/No Major Risk",NA
+928,44,"Female",63,144,30.38194444,139,86,3,95,"Occasional",0,6,7,148,196,"Normal/No Major Risk",NA
+929,56,"Male",45,140,22.95918367,133,76,3,118,"Occasional",14,7,4,114,190,"Pre-Diabetes",NA
+930,19,"Male",51,151,22.36744002,118,72,1,61,"Chainsmoker",14,2,9,111,140,"Pre-Diabetes",NA
+931,71,"Female",65,157,26.37023814,128,76,2,108,"Non-Smoker",9,6,5,127,190,"Normal/No Major Risk",NA
+932,19,"Male",64,160,25,119,82,3,65,"Occasional",16,2,7,118,143,"Pre-Diabetes",NA
+933,58,"Female",78,153,33.32051775,151,92,4,116,"Chainsmoker",0,7,5,157,234,"Metabolic Syndrome",NA
+934,74,"Female",58,131,33.79756424,141,81,4,131,"Non-Smoker",3,8,4,159,226,"PCOS",NA
+935,78,"Female",81,170,28.02768166,138,80,3,110,"Non-Smoker",4,6,5,134,203,"Normal/No Major Risk",NA
+936,72,"Female",80,152,34.62603878,151,89,4,105,"Occasional",0,4,4,155,238,"Normal/No Major Risk",NA
+937,60,"Female",68,141,34.20351089,150,95,4,82,"Chainsmoker",11,4,5,155,229,"Normal/No Major Risk",NA
+938,35,"Male",64,165,23.50780533,122,67,2,137,"Non-Smoker",2,10,5,124,160,"Pre-Diabetes",NA
+939,46,"Male",48,170,16.60899654,122,78,2,72,"Chainsmoker",15,2,5,80,150,"Normal/No Major Risk",NA
+940,23,"Female",63,147,29.15451895,123,69,2,139,"Non-Smoker",1,9,NA,135,170,"Depression",NA
+941,42,"Female",71,168,25.15589569,136,71,3,122,"Non-Smoker",6,8,6,129,164,"Normal/No Major Risk",NA
+942,18,"Female",51,142,25.29260067,126,74,2,88,"Non-Smoker",12,4,6,121,132,"Pre-Diabetes",NA
+943,80,"Male",53,145,25.20808561,144,86,4,107,"Occasional",9,7,6,127,211,"Normal/No Major Risk",NA
+944,45,"Female",49,156,20.13477975,129,82,3,124,"Chainsmoker",14,7,4,103,179,"Pre-Diabetes",NA
+945,75,"Female",78,150,34.66666667,134,86,3,129,"Non-Smoker",4,7,4,161,231,"PCOS",NA
+946,32,"Female",74,159,29.27099403,123,81,3,115,"Occasional",6,6,4,137,187,"Normal/No Major Risk",NA
+947,76,"Male",64,145,30.43995244,145,94,4,135,"Occasional",0,8,4,146,237,"Metabolic Syndrome",NA
+948,25,"Female",55,166,19.95935549,116,64,1,87,"Non-Smoker",15,2,4,92,116,"Normal/No Major Risk",NA
+949,40,"Male",53,143,25.91813781,131,83,3,74,"Occasional",15,2,5,118,164,"Pre-Diabetes",NA
+950,40,"Female",61,149,27.47623981,134,75,3,135,"Non-Smoker",3,9,4,136,176,"Insulin Resistance",NA
+951,57,"Female",60,169,21.0076678,123,67,2,99,"Non-Smoker",7,6,5,106,152,"Pre-Diabetes",NA
+952,80,"Male",57,165,20.93663912,130,74,3,119,"Non-Smoker",0,5,4,102,181,"Pre-Diabetes",NA
+953,72,"Male",57,170,19.72318339,128,71,2,147,"Non-Smoker",1,9,4,105,183,"Depression",NA
+954,19,"Male",61,149,27.47623981,124,68,2,115,"Non-Smoker",14,6,4,130,149,"Normal/No Major Risk",NA
+955,81,"Female",67,133,37.8766465,151,86,4,99,"Non-Smoker",5,5,5,172,236,"Obesity",NA
+956,34,"Female",69,147,31.9311398,128,79,2,122,"Occasional",3,9,6,158,200,"Normal/No Major Risk",NA
+957,65,"Male",60,158,24.03460984,134,86,3,105,"Chainsmoker",8,6,5,118,207,"Pre-Diabetes",NA
+958,62,"Male",79,170,27.33564014,130,78,3,124,"Non-Smoker",2,6,NA,121,192,"Pre-Diabetes",NA
+959,28,"Female",59,132,33.86134068,128,82,3,72,"Occasional",13,4,8,159,183,"Normal/No Major Risk",NA
+960,51,"Male",47,146,22.04916495,127,75,2,87,"Non-Smoker",14,2,4,100,150,"Pre-Diabetes",NA
+961,65,"Female",52,130,30.76923077,146,100,4,103,"Chainsmoker",13,7,5,147,225,"Cardiovascular Disease",NA
+962,68,"Male",77,147,35.63330094,142,93,4,98,"Occasional",5,6,5,165,236,"Obesity",NA
+963,51,"Male",57,156,23.42209073,139,78,3,82,"Chainsmoker",7,3,6,112,179,"Pre-Diabetes",NA
+964,41,"Male",55,166,19.95935549,117,66,1,132,"Non-Smoker",2,7,4,102,148,"Pre-Diabetes",NA
+965,54,"Male",69,170,23.87543253,127,83,3,111,"Occasional",3,7,5,120,185,"Pre-Diabetes",NA
+966,90,"Male",53,158,21.23057202,143,80,4,87,"Occasional",16,5,6,107,199,"Pre-Diabetes",NA
+967,66,"Male",59,157,23.93606231,122,76,2,105,"Non-Smoker",6,3,4,110,175,"Pre-Diabetes",NA
+968,80,"Male",78,170,26.98961938,151,95,4,127,"Chainsmoker",6,8,NA,124,236,"Pre-Diabetes",NA
+969,36,"Female",53,131,30.88398112,127,78,2,101,"Occasional",5,7,7,152,191,"Normal/No Major Risk",NA
+970,35,"Female",48,138,25.20478891,129,84,3,93,"Chainsmoker",15,6,5,123,176,"Pre-Diabetes",NA
+971,53,"Male",61,146,28.61700131,122,73,2,91,"Non-Smoker",12,3,4,128,173,"Normal/No Major Risk",NA
+972,32,"Female",46,134,25.61817777,123,68,2,89,"Non-Smoker",16,4,6,122,144,"Pre-Diabetes",NA
+973,38,"Male",58,170,20.06920415,118,70,1,64,"Non-Smoker",14,3,7,100,120,"Pre-Diabetes",NA
+974,61,"Female",61,136,32.98010381,142,91,4,114,"Occasional",3,7,6,158,227,"Normal/No Major Risk",NA
+975,22,"Female",73,137,38.89392083,128,71,2,104,"Non-Smoker",0,8,9,190,188,"Obesity",NA
+976,63,"Male",58,141,29.17358282,139,96,4,100,"Chainsmoker",5,3,NA,123,220,"Pre-Diabetes",NA
+977,72,"Female",61,163,22.95908766,133,82,3,60,"Chainsmoker",15,1,5,104,190,"Pre-Diabetes",NA
+978,90,"Male",74,170,25.60553633,142,87,4,101,"Chainsmoker",6,3,4,116,231,"Pre-Diabetes",NA
+979,63,"Female",76,153,32.4661455,135,87,3,129,"Non-Smoker",3,7,4,152,210,"PCOS",NA
+980,54,"Male",70,164,26.0261749,145,85,4,122,"Chainsmoker",3,6,4,124,206,"Pre-Diabetes",NA
+981,28,"Male",62,171,21.20310523,131,76,3,67,"Chainsmoker",15,1,6,99,145,"Normal/No Major Risk",NA
+982,18,"Male",68,174,22.46003435,121,64,2,61,"Non-Smoker",11,1,5,102,111,"Pre-Diabetes",NA
+983,53,"Male",61,157,24.74745426,119,75,1,107,"Non-Smoker",2,4,4,115,168,"Pre-Diabetes",NA
+984,90,"Male",68,174,22.46003435,126,75,2,93,"Non-Smoker",9,4,6,110,188,"Pre-Diabetes",NA
+985,43,"Female",49,131,28.55311462,138,88,3,79,"Chainsmoker",12,3,6,132,190,"Normal/No Major Risk",NA
+986,34,"Male",68,166,24.67702134,126,73,2,142,"Chainsmoker",0,8,NA,115,193,"Depression",NA
+987,60,"Male",60,140,30.6122449,146,91,4,90,"Occasional",13,6,6,146,206,"Normal/No Major Risk",NA
+988,88,"Male",56,151,24.5603263,142,87,4,101,"Occasional",6,6,6,122,216,"Pre-Diabetes",NA
+989,62,"Male",60,163,22.58270917,137,90,4,103,"Chainsmoker",6,7,6,116,198,"Pre-Diabetes",NA
+990,90,"Male",80,154,33.73250126,141,91,4,97,"Non-Smoker",6,6,6,159,226,"Normal/No Major Risk",NA
+991,31,"Male",79,172,26.70362358,133,80,3,127,"Occasional",0,8,6,135,180,"Normal/No Major Risk",NA
+992,52,"Male",68,149,30.62925093,148,93,4,88,"Occasional",13,5,6,145,200,"Normal/No Major Risk",NA
+993,58,"Male",55,161,21.21831719,134,87,3,108,"Chainsmoker",16,4,4,101,189,"Pre-Diabetes",NA
+994,49,"Male",69,165,25.34435262,140,85,4,83,"Chainsmoker",4,4,7,123,186,"Pre-Diabetes",NA
+995,45,"Female",61,169,21.3577956,139,80,3,NA,"Occasional",1,9,5,113,123,"Pre-Diabetes",NA
+996,86,"Female",60,160,23.4375,131,85,3,120,"Chainsmoker",6,7,4,116,228,"Pre-Diabetes",NA
+997,47,"Male",50,140,25.51020408,127,79,2,84,"Non-Smoker",10,5,6,124,154,"Pre-Diabetes",NA
+998,43,"Female",53,144,25.55941358,130,81,3,89,"Occasional",11,4,5,120,175,"Pre-Diabetes",NA
+999,32,"Male",72,145,34.24494649,136,79,3,120,"Occasional",0,6,4,157,209,"Normal/No Major Risk",NA
+1000,84,"Female",65,150,28.88888889,137,87,3,127,"Occasional",3,6,4,136,240,"Normal/No Major Risk",NA
