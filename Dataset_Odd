@@ -1,0 +1,125 @@
+library(tidyverse)
+library(ggplot2)
+library(psych)
+library(corrplot)
+
+# Load dataset
+data <- read.csv("C:/Users/nicho/Downloads/Dataset_odd.csv", stringsAsFactors = FALSE)
+
+
+# Clean numeric columns (strip non-numeric characters just in case)
+data$Weight_kg <- as.numeric(gsub("[^0-9.]", "", data$Weight_kg))
+data$Height_cm <- as.numeric(gsub("[^0-9.]", "", data$Height_cm))
+data$BMI <- as.numeric(gsub("[^0-9.]", "", data$BMI))
+data$Systolic_BP <- as.numeric(gsub("[^0-9.]", "", data$Systolic_BP))
+data$Diastolic_BP <- as.numeric(gsub("[^0-9.]", "", data$Diastolic_BP))
+data$Heart_rate <- as.numeric(gsub("[^0-9.]", "", data$Heart_rate))
+data$Glucose_mg.dL <- as.numeric(gsub("[^0-9.]", "", data$Glucose_mg.dL))
+data$Cholesterol_mg.dL <- as.numeric(gsub("[^0-9.]", "", data$Cholesterol_mg.dL))
+data$Physical_Activity_Hours_Week <- as.numeric(gsub("[^0-9.]", "", data$Physical_Activity_Hours_Week))
+data$Daily_Sleeping_hours <- as.numeric(gsub("[^0-9.]", "", data$Daily_Sleeping_hours))
+data$Hypertension <- as.numeric(data$Hypertension)
+
+# Convert categorical/factor variables
+data$Sex <- factor(data$Sex, levels = c(0,1), labels = c("Female", "Male"))
+data$Smoking_Status <- factor(data$Smoking_Status,
+                              levels = c(0,1,2),
+                              labels = c("Non-Smoker", "Occasional", "Chainsmoker"))
+data$Stress_Level <- factor(data$Stress_Level,
+                            levels = c(0,1,2),
+                            labels = c("Low", "Moderate", "High"))
+data$Elevated.Risk <- factor(data$Elevated.Risk, levels = c(0,1), labels = c("No", "Yes"))
+
+# Drop legend columns
+data <- data %>% select(-contains("Legend"))
+
+# Remove implausible BMI values
+data <- data %>% filter(BMI > 10)
+
+# --------------------------
+# Outlier Removal Function
+# --------------------------
+remove_outliers <- function(df, col) {
+  Q1 <- quantile(df[[col]], 0.25, na.rm = TRUE)
+  Q3 <- quantile(df[[col]], 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  df %>% filter(df[[col]] >= (Q1 - 1.5 * IQR) & df[[col]] <= (Q3 + 1.5 * IQR))
+}
+
+# Apply outlier removal
+data_clean <- data %>%
+  remove_outliers("BMI") %>%
+  remove_outliers("Systolic_BP") %>%
+  remove_outliers("Diastolic_BP") %>%
+  remove_outliers("Glucose_mg.dL") %>%
+  remove_outliers("Cholesterol_mg.dL") %>%
+  remove_outliers("Heart_rate")
+
+# -----------------------
+# Descriptive Statistics
+# -----------------------
+summary(data_clean)
+describe(data_clean %>% select(where(is.numeric)))
+
+# ---------------
+# Visualization 
+# ---------------
+
+# Histograms by Sex
+histogram_vars <- c("BMI", "Glucose_mg.dL", "Cholesterol_mg.dL")
+for (col in histogram_vars) {
+  print(
+    ggplot(data_clean %>% filter(!is.na(.data[[col]])), aes_string(x = col, fill = "Sex")) +
+      geom_histogram(color = "black", bins = 30, position = "identity", alpha = 0.6) +
+      facet_wrap(~ Sex) +
+      labs(title = paste("Distribution of", col, "by Sex"),
+           x = col, fill = "Sex") +
+      theme_minimal()
+  )
+}
+
+# Bar Plot: Smoking Status
+ggplot(data_clean %>% filter(!is.na(Smoking_Status)), aes(x = Smoking_Status)) +
+  geom_bar(fill = "tomato", color = "black") +
+  labs(title = "Smoking Status Distribution", x = "Smoking Status", y = "Count") +
+  theme_minimal()
+
+# Box Plots by Sex
+boxplot_vars <- c("BMI", "Glucose_mg.dL", "Cholesterol_mg.dL")
+for (col in boxplot_vars) {
+  print(
+    ggplot(data_clean %>% filter(!is.na(.data[[col]])), aes_string(x = "Sex", y = col, fill = "Sex")) +
+      geom_boxplot(alpha = 0.7) +
+      labs(title = paste("Boxplot of", col, "by Sex"),
+           x = "Sex", y = col, fill = "Sex") +
+      theme_minimal()
+  )
+}
+
+# Scatter Plots: BMI vs Vital Signs
+scatter_vars <- c("Systolic_BP", "Diastolic_BP", "Heart_rate", "Glucose_mg.dL", "Cholesterol_mg.dL")
+for (col in scatter_vars) {
+  print(
+    ggplot(data_clean %>% filter(!is.na(BMI), !is.na(.data[[col]])), aes_string(x = "BMI", y = col, color = "Sex")) +
+      geom_point(alpha = 0.6) +
+      geom_smooth(method = "lm", se = FALSE, linetype = "dashed", color = "black") +
+      labs(title = paste("BMI vs", col),
+           x = "BMI", y = col, color = "Sex") +
+      theme_minimal()
+  )
+}
+
+# --------------------
+# Statistical Tests 
+# --------------------
+
+# t-test: Cholesterol by Sex
+t_test_result <- t.test(Cholesterol_mg.dL ~ Sex, data = data_clean)
+print(t_test_result)
+
+# Correlation matrix
+cor_matrix <- cor(data_clean %>% select(where(is.numeric)), use = "complete.obs")
+print(round(cor_matrix, 2))
+
+# Visual correlation matrix
+corrplot(cor_matrix, method = "color", tl.cex = 0.7)
